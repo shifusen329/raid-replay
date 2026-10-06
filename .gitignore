@@ -33,3 +33,7 @@ config.local.*
 *.sqlite3
 *.bak
 *.tmp
+
+# Third-party reference material (strategy guides, transcripts, images, mitigation sheets) used while building the
+# encounter packs. Kept locally, never published.
+docs/
