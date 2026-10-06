@@ -1,0 +1,9 @@
+<Project>
+  <!-- Release builds record repo-relative source paths (/_/...) instead of this machine's paths, which would leak the
+       builder's local user name into the shipped dll/pdb. -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <PathMap>$(MSBuildThisFileDirectory)=/_/</PathMap>
+    <!-- Also makes Source Link key on the mapped path instead of the local one. -->
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+</Project>

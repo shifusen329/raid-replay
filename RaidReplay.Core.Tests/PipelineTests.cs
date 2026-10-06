@@ -141,15 +141,24 @@ public class AnalyzerTests
     }
 
     [Fact]
-    public void OverlappingPuddlesAreNamed()
+    public void RockThatTouchedThePuddlesIsBlamed()
     {
+        // Combining the purple puddles is the strat; a yellow-tether rock (Vitrophyre) resolving within ~10y of a
+        // puddle detonates them all. The rock holder closest to the puddles is to blame.
         var r = PullLoader.Load(TestEnv.OnlyPull("dmu_p1_puddles.log"), null, TestEnv.Registry);
         var report = WipeAnalyzer.Analyze(r);
         var root = Assert.IsType<Incident>(report.RootCause);
         Assert.Equal(IncidentKind.FailureAction, root.Kind);
-        Assert.Contains("×4", root.Title);
-        Assert.Contains("dropped overlapping", root.Detail);
-        Assert.Equal(4, root.Players.Count);
+        Assert.Contains("Vitrophyre rock touched the Gravitas puddles", root.Title);
+        Assert.Contains("caused the wipe", root.Title);
+        var culprit = Assert.Single(root.Players);
+        var rocks = r.Actions.Where(a => a.ActionId == 0xBAB0 && Math.Abs(a.T - root.T) < 2000).ToList();
+        Assert.Equal(4, rocks.Count);
+        Assert.Contains(rocks, a => a.AnimationTarget == culprit);
+        Assert.Contains("wiped the party", root.Detail);
+        var snap = Assert.Single(root.Snapshot, s => s.Player == culprit);
+        Assert.Equal(ExpectedSource.SafeSpot, snap.ExpectedSource);
+        Assert.InRange(snap.MissDistance!.Value, 1, 8);
         Assert.Equal("Mechanic failure", report.Verdict);
         Assert.StartsWith("[Raid Replay] Wipe", report.ChatLine);
     }
@@ -288,6 +297,28 @@ public class IntegrationTests
         Assert.Equal(counter.Wipes, index.Pulls.Count(p => p.Outcome == PullOutcome.Wipe));
     }
 
+    [LogsFact(DmuLog)]
+    public void ArrowChainsMatchTheGamesPuzzleVerdict()
+    {
+        // The game confirms a solved arrow puzzle with director 80000027 0C (~3:10). Following the Confused players
+        // through the arrows actually on the ground must agree with it on every pull that got that far.
+        var path = Path.Combine(TestEnv.LogsPath!, DmuLog);
+        var index = IndexStore.IndexFile(path, null, new EncounterObserverFactory(TestEnv.Registry), TestEnv.Registry.HashFor);
+        var checkedPulls = 0;
+        foreach (var p in index.Pulls.Where(p => p.EncounterKey == "dmu" && p.DurationMs > 185000))
+        {
+            var r = PullLoader.Load(p, null, TestEnv.Registry);
+            var sq = ArrowSquare.Evaluate(r);
+            if (sq == null || sq.ConfusedStartMs < 0 || r.EndMs < sq.ConfusedEndMs + 10000)
+                continue;
+            var game = r.Directors.Any(d => d.Command == 0x80000027 && d.P1 == 0x0C);
+            Assert.True(game == sq.Solved, $"pull #{p.Ordinal}: game {(game ? "solved" : "failed")}, simulation {(sq.Solved ? "solved" : "failed")}");
+            checkedPulls++;
+        }
+
+        Assert.True(checkedPulls >= 40, $"{checkedPulls} pulls checked");
+    }
+
     private sealed class WipeCounter : ILineConsumer
     {
         public int Wipes { get; private set; }
@@ -311,7 +342,11 @@ public class FixtureHygieneTests
     /// </summary>
     [Theory]
     [InlineData("dmu_p1_cleave.log")]
+    [InlineData("dmu_p1_resets.log")]
+    [InlineData("dmu_p1_undersoak.log")]
     [InlineData("dmu_p1_puddles.log")]
+    [InlineData("dmu_p1_arrows.log")]
+    [InlineData("dmu_p1_knockback_arrows.log")]
     public void FixturesAreAnonymized(string fixture)
     {
         foreach (var line in File.ReadLines(TestEnv.Fixture(fixture)))
@@ -337,5 +372,163 @@ public class FixtureHygieneTests
                     Assert.True(id <= 0x100000FFu, $"unmapped player id {f[i]} in: {line}");
             }
         }
+    }
+}
+
+public class AfterActionTests
+{
+    private static (PullReplay Replay, WipeReport Report) Analyze(string fixture)
+    {
+        var r = PullLoader.Load(TestEnv.OnlyPull(fixture), null, TestEnv.Registry);
+        return (r, WipeAnalyzer.Analyze(r));
+    }
+
+    [Fact]
+    public void PartySlotsCoverTheStandardEight()
+    {
+        var (_, report) = Analyze("dmu_p1_puddles.log");
+        Assert.Equal(PartySlots.Order.Order(), report.Slots.Values.Order());
+        var h1 = report.Slots.First(kv => kv.Value == "H1").Key;
+        Assert.Contains(h1.Job, new byte[] { 24, 33 }); // pure healer
+        var r2 = report.Slots.First(kv => kv.Value == "R2").Key;
+        Assert.Contains(r2.Job, new byte[] { 25, 27, 35, 42 }); // caster
+    }
+
+    [Fact]
+    public void MitigationIsCheckedAgainstThePlanWithCooldownAwareness()
+    {
+        var (_, report) = Analyze("dmu_p1_puddles.log");
+        var loj = Assert.Single(report.Mitigation, c => c.Mechanic.Id == "loj_1");
+        Assert.True(loj.HitFound);
+        Assert.NotEmpty(loj.Entries);
+        // Nothing is blamed unless its cooldown was available and it isn't a carry-over.
+        Assert.All(report.Mitigation.SelectMany(c => c.Entries).Where(e => e.Blamable),
+                   e => Assert.True(e.Status is MitStatus.Missing or MitStatus.UsedNotActive && !e.Carry));
+        Assert.All(report.Mitigation.SelectMany(c => c.Entries).Where(e => e.Status == MitStatus.OnCooldown),
+                   e => Assert.False(e.Blamable));
+    }
+
+    [Fact]
+    public void DamageDownResetsAreDeliberateAndTheirCascadeIsExplained()
+    {
+        // Pull #11: a real Blizzard cone gives Damage Down -> the player jumps off (reset) -> their tower goes unsoaked
+        // -> more Damage Down -> more resets -> wipe.
+        var (_, report) = Analyze("dmu_p1_resets.log");
+        var resets = report.Incidents.Where(i => i.Intentional).ToList();
+        Assert.True(resets.Count >= 3, $"{resets.Count} resets");
+        Assert.All(resets, i => Assert.Equal(1, i.Severity));
+        Assert.All(resets, i => Assert.Contains("reset Damage Down", i.Title));
+        var root = Assert.IsType<Incident>(report.RootCause);
+        Assert.False(root.Intentional);
+        Assert.Equal(IncidentKind.AvoidableHit, root.Kind);
+        Assert.Equal("Damage Down resets overwhelmed recovery", report.Verdict);
+    }
+
+    [Fact]
+    public void UnderSoakedPuddlesNameTheMissingSoakers()
+    {
+        // Pull #75: one player soaks four overlapping Gravitas puddles alone at 2:01.
+        var (_, report) = Analyze("dmu_p1_undersoak.log");
+        var soak = Assert.Single(report.Incidents, i => i.Kind == IncidentKind.TowerUnderSoaked && i.Title.Contains("1/4"));
+        Assert.Contains("4 overlapping", soak.Title);
+        Assert.Contains("Nearest free players", soak.Detail);
+        Assert.Contains(soak.Snapshot, s => s.ExpectedSource == ExpectedSource.Soak);
+    }
+
+    [Fact]
+    public void MitigationWouldSaveEstimate()
+    {
+        var kerachole = MitigationCatalog.Resolve("Kerachole", "SGE")!;
+        var reprisal = MitigationCatalog.Resolve("Reprisal", "WAR")!;
+        Assert.Equal(90000, MitigationCatalog.WithMitigation(100000, 200000, [kerachole]));
+        Assert.Equal(81000, MitigationCatalog.WithMitigation(100000, 200000, [kerachole, reprisal]));
+        Assert.Null(MitigationCatalog.WithMitigation(100000, 200000, [MitigationCatalog.Resolve("Macrocosmos", "AST")!]));
+        Assert.Equal("Tactician", MitigationCatalog.Resolve("@partyMit", "MCH")!.Name);
+        Assert.Null(MitigationCatalog.Resolve("@partyMit", "SAM"));
+    }
+}
+
+public class ArrowPuzzleTests
+{
+    private static (PullReplay Replay, WipeReport Report) Analyze(string fixture)
+    {
+        var r = PullLoader.Load(TestEnv.OnlyPull(fixture), null, TestEnv.Registry);
+        return (r, WipeAnalyzer.Analyze(r));
+    }
+
+    private static Actor Player(PullReplay r, string name) => r.Party.Single(p => p.Name == name);
+
+    [Fact]
+    public void ConfusedKillsGoToWhoeverMisplacedTheArrow()
+    {
+        // Pull #39: Player8's E arrow sat 3.9y inside N3, so Player7 (Confused) was thrown onto empty ground after one
+        // teleport and killed Player5 — the wipe's root cause. Player1's S arrow for E3 was on SE: Player2 killed Player3.
+        var (r, report) = Analyze("dmu_p1_arrows.log");
+        Assert.Equal("Arrow placement failure", report.Verdict);
+        var root = report.RootCause!;
+        Assert.Equal("Player5 killed by confused Player7", root.Title);
+        Assert.Contains(Player(r, "Player8"), root.Players);
+
+        var second = Assert.Single(report.Incidents, i => i.Title == "Player3 killed by confused Player2");
+        Assert.Contains(Player(r, "Player1"), second.Players);
+
+        Assert.NotNull(report.Arrows);
+        Assert.False(report.Arrows!.Solved);
+        Assert.Equal(16, report.Arrows.Drops.Count);
+    }
+
+    [Fact]
+    public void StackedArrowsBlameTheArrowsThatWereOutOfPlace()
+    {
+        // Three W arrows overlapped near the south side and vanished: Player6's second arrow and Player1's arrow were
+        // off their spots, Player6's first one was where it belonged — so it is not counted against the drop that hit it.
+        var (r, report) = Analyze("dmu_p1_arrows.log");
+        var stack = Assert.Single(report.Arrows!.Findings, f => f.Fault == ArrowFault.Stacked);
+        Assert.Equal(["Player1", "Player6"], stack.Culprits.Select(c => c.Name).Order());
+        var inc = Assert.Single(report.Incidents, i => i.Kind == IncidentKind.ArrowPuzzle && i.Title.Contains("on top of each other"));
+        Assert.Equal(ExpectedSource.Assigned, inc.Snapshot.Single(s => s.Player == Player(r, "Player1")).ExpectedSource);
+    }
+
+    [Fact]
+    public void ArrowsKnockedIntoGoToTheHolderWhoWasOffTheirCorner()
+    {
+        // Pull #61: the DPS confetti holder (Player4) stood 7.2y from the bottom-right corner of marker 3, so the third
+        // knockback sent Player5 and Player7 south into the arrows before the confusion. The soakers were on their spot.
+        var (r, report) = Analyze("dmu_p1_knockback_arrows.log");
+        var early = report.Arrows!.Findings.Where(f => f.Fault == ArrowFault.SetOffEarly).ToList();
+        Assert.Equal(2, early.Count);
+        Assert.All(early, f => Assert.Equal([Player(r, "Player4")], f.Culprits));
+        Assert.All(early, f => Assert.Contains("holding it", f.Text));
+    }
+
+    [Fact]
+    public void ConfusedPlayersOutOfPositionAreCalledOut()
+    {
+        var (r, report) = Analyze("dmu_p1_knockback_arrows.log");
+        // Never reached an arrow at all.
+        var walk = Assert.Single(report.Incidents, i => i.Title == "Player8 killed by confused Player5");
+        Assert.Equal("Confused positioning", walk.VerdictHint);
+        Assert.Contains("never stepped on an arrow", walk.Detail);
+        // Stepped in at a corner and ran into arrows another Confused player had already used.
+        var shortChain = Assert.Single(report.Incidents, i => i.Title == "Player2 killed by confused Player7");
+        Assert.Contains("stopped after 2 of 4 arrows", shortChain.Detail);
+        Assert.Equal("Confused player reached an ally", report.Verdict);
+        Assert.Equal(walk, report.RootCause);
+    }
+
+    [Fact]
+    public void ShortConfettiStackBlamesTheRoleMatesWhoStayedOut()
+    {
+        // Pull #75: the second confetti knockback on a support was taken by one player (1.5M damage, dead); the last
+        // living support stayed out (the third was already dead).
+        var (r, report) = Analyze("dmu_p1_undersoak.log");
+        var inc = Assert.Single(report.Incidents, i => i.Kind == IncidentKind.MissedStack && i.Title.Contains("1/3 soakers"));
+        Assert.Equal(3, inc.Severity);
+        var missing = inc.Players.Where(p => !inc.Title.Contains($"{p.Name} died")).ToList();
+        Assert.Single(missing);
+        var holder = inc.Aoes[0].ExcludeActor!;
+        Assert.All(missing, p => Assert.Equal(StackPositions.IsSupport(holder), StackPositions.IsSupport(p)));
+        Assert.Contains("Already dead", inc.Detail);
+        Assert.Equal(ExpectedSource.Soak, inc.Snapshot.Single(s => s.Player == missing[0]).ExpectedSource);
     }
 }

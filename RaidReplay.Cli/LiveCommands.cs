@@ -48,7 +48,7 @@ internal static partial class CliApp
                 sw.Restart();
                 var replay = PullLoader.Load(pull, data, reg, cts.Token, readToEof: true);
                 var profile = replay.Encounter != null ? PositionProfile.Load(o.CacheDir, replay.Encounter.Key) : null;
-                var report = WipeAnalyzer.Analyze(replay, profile);
+                var report = WipeAnalyzer.Analyze(replay, profile, data);
                 var latency = (DateTime.UtcNow - at).TotalMilliseconds + flushDelay;
                 Console.WriteLine($"  analysis ready {latency:N0} ms after the pull ended (load+analyze {sw.ElapsedMilliseconds} ms)");
                 PrintReport(report, false);

@@ -52,12 +52,9 @@ internal sealed class Options
         {
             var dir = Get("logs") ?? Environment.GetEnvironmentVariable("LOGS_PATH") ?? DotEnv("LOGS_PATH");
             if (string.IsNullOrEmpty(dir))
-            {
-                dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                                   "Advanced Combat Tracker", "FFXIVLogs");
-            }
+                dir = @"%USERPROFILE%\AppData\Roaming\Advanced Combat Tracker\FFXIVLogs";
 
-            return dir;
+            return Environment.ExpandEnvironmentVariables(dir);
         }
     }
 

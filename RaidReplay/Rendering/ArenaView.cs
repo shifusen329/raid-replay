@@ -13,6 +13,9 @@ public sealed class ArenaView
     public float PixelsPerYalm { get; set; } = 12f;
     public bool Hovered { get; private set; }
 
+    /// <summary>Mouse-wheel zoom (off for embedded snapshot maps inside scrolling panels).</summary>
+    public bool WheelZoom { get; set; } = true;
+
     public Vector2 CanvasSize => CanvasMax - CanvasMin;
     public Vector2 CanvasCenter => (CanvasMin + CanvasMax) / 2;
 
@@ -38,8 +41,10 @@ public sealed class ArenaView
         ImGui.InvisibleButton(id, CanvasMax - CanvasMin,
                               ImGuiButtonFlags.MouseButtonLeft | ImGuiButtonFlags.MouseButtonRight | ImGuiButtonFlags.MouseButtonMiddle);
         Hovered = ImGui.IsItemHovered();
+        if (WheelZoom)
+            ImGuiP.SetItemUsingMouseWheel(); // keep the parent from scrolling while zooming
         var io = ImGui.GetIO();
-        if (Hovered && io.MouseWheel != 0)
+        if (Hovered && WheelZoom && io.MouseWheel != 0)
         {
             var mouse = ImGui.GetMousePos();
             var before = ToWorld(mouse);

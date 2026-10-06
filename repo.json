@@ -1,0 +1,26 @@
+[
+  {
+    "Author": "shifusen329",
+    "Name": "Raid Replay",
+    "InternalName": "RaidReplay",
+    "AssemblyVersion": "0.0.1.0",
+    "TestingAssemblyVersion": "0.0.1.0",
+    "Punchline": "Replay and analyze raid pulls from your ACT network logs.",
+    "Description": "Reconstructs every pull from ACT network logs: arena map, waymarks, player positions and facing, boss casts and AoE telegraphs, towers, tethers, head markers and deaths, with a scrubbable timeline. Watches the live log and explains each wipe right after it happens: root cause, who was where, and where they should have been.\n\nAlpha: requires ACT with the FFXIV plugin writing network logs (default folder %USERPROFILE%\\AppData\\Roaming\\Advanced Combat Tracker\\FFXIVLogs). /aar opens the after-action report, /raidreplay the replay window.",
+    "ApplicableVersion": "any",
+    "RepoUrl": "https://github.com/shifusen329/raid-replay",
+    "Tags": ["raid", "replay", "act", "analysis", "logs"],
+    "DalamudApiLevel": 15,
+    "TestingDalamudApiLevel": 15,
+    "LoadPriority": 0,
+    "IsHide": false,
+    "IsTestingExclusive": false,
+    "AcceptsFeedback": true,
+    "DownloadCount": 0,
+    "LastUpdate": 1791314179,
+    "Changelog": "0.0.1 (alpha): first test build. Pull replay from ACT network logs, live wipe analysis with after-action report (/aar), Dancing Mad (Ultimate) P1-P2 pack: mitigation plan check, Damage Down resets, puddle/rock and confetti attribution, Tele-trouncing arrow puzzle attribution.",
+    "DownloadLinkInstall": "https://github.com/shifusen329/raid-replay/releases/download/v0.0.1/latest.zip",
+    "DownloadLinkTesting": "https://github.com/shifusen329/raid-replay/releases/download/v0.0.1/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/shifusen329/raid-replay/releases/download/v0.0.1/latest.zip"
+  }
+]

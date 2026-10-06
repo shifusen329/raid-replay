@@ -166,4 +166,31 @@ public sealed class PullReplay
 
         return name ?? string.Empty;
     }
+
+    /// <summary>Where waymark <paramref name="slot"/> (0–3 = A–D, 4–7 = 1–4) was at time t, if placed.</summary>
+    public Vector2? WaymarkAt(int slot, int t)
+    {
+        Vector2? pos = null;
+        foreach (var w in InitialWaymarks)
+        {
+            if (w.Slot == slot)
+                pos = new Vector2(w.X, w.Y);
+        }
+
+        foreach (var e in Waymarks)
+        {
+            if (e.T > t)
+                break;
+            if (e.Slot == slot)
+                pos = e.Add ? new Vector2(e.Pos.X, e.Pos.Y) : null;
+        }
+
+        return pos;
+    }
+
+    /// <summary>Waymark slot for a name ("A"–"D", "1"–"4"), or -1.</summary>
+    public static int WaymarkSlot(string name) => name.Trim().ToUpperInvariant() switch
+    {
+        "A" => 0, "B" => 1, "C" => 2, "D" => 3, "1" => 4, "2" => 5, "3" => 6, "4" => 7, _ => -1,
+    };
 }

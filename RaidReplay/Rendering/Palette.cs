@@ -60,7 +60,7 @@ public static class Palette
     {
         IncidentKind.Death or IncidentKind.FellOff => new Vector4(1f, 0.3f, 0.3f, 1),
         IncidentKind.Enrage => new Vector4(1f, 0.55f, 0.1f, 1),
-        IncidentKind.FailureAction or IncidentKind.TowerUnderSoaked => new Vector4(1f, 0.75f, 0.2f, 1),
+        IncidentKind.FailureAction or IncidentKind.TowerUnderSoaked or IncidentKind.ArrowPuzzle => new Vector4(1f, 0.75f, 0.2f, 1),
         _ => new Vector4(0.95f, 0.9f, 0.5f, 1),
     };
 
@@ -68,6 +68,7 @@ public static class Palette
     {
         ExpectedSource.Learned => new Vector4(0.3f, 1f, 0.6f, 1),
         ExpectedSource.Soak => new Vector4(0.3f, 0.85f, 1f, 1),
+        ExpectedSource.Assigned => new Vector4(1f, 0.6f, 0.9f, 1),
         _ => new Vector4(1f, 1f, 0.4f, 1),
     };
 

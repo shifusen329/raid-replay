@@ -41,7 +41,7 @@ public sealed class LuminaGameData : IGameData
         var omen = row.Omen.ValueNullable?.Path.ToString();
         return new ActionInfo(id, row.Name.ToString(), row.CastType, row.EffectRange, row.XAxisModifier,
                               string.IsNullOrEmpty(omen) ? null : omen, row.TargetArea, row.Cast100ms, row.Icon,
-                              row.IsPlayerAction);
+                              row.IsPlayerAction, row.Recast100ms / 10f);
     }
 
     public StatusInfo? GetStatus(uint id) => statusCache.GetOrAdd(id, sid =>

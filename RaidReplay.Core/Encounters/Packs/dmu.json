@@ -112,16 +112,30 @@
     "0xBAAA": { "label": "Explosion (tower, 1)", "category": "tower", "soakers": 1, "shape": { "type": "circle", "radius": 4, "origin": "castLoc" }, "conf": "v (validate-shapes)" },
     "0xBAAB": { "label": "Unmitigated Explosion (tower missed)", "category": "failure", "shape": { "type": "none" }, "conf": "v" },
     "0xBAA6": { "label": "Double-trouble Trap", "category": "info", "shape": { "type": "none" }, "conf": "v" },
-    "0xBAA7": { "label": "Double-trouble Trap (confetti)", "category": "stack", "shape": { "type": "circle", "radius": 6, "origin": "animTarget" }, "excludesHolder": true, "knockback": true, "telegraph": { "mode": "lookback", "s": 5 }, "conf": "v" },
+    "0xBAA7": { "label": "Double-trouble Trap (confetti)", "category": "stack", "shape": { "type": "circle", "radius": 6, "origin": "animTarget" }, "excludesHolder": true, "knockback": true, "soakers": 3, "soakGroup": "role",
+      "positions": [
+        { "occurrence": 3, "group": "support", "holder": { "waymark": "1", "default": [94, 94], "offset": [-1, -1] },
+          "soakers": { "waymark": "1", "default": [94, 94], "offset": [1, 1] }, "tolerance": 2.5,
+          "note": "Graven Image 3: holder on the top-left corner of marker 1, the other supports on its bottom-right corner" },
+        { "occurrence": 3, "group": "dps", "holder": { "waymark": "3", "default": [106, 106], "offset": [1, 1] },
+          "soakers": { "waymark": "3", "default": [106, 106], "offset": [-1, -1] }, "tolerance": 2.5,
+          "note": "Graven Image 3: holder on the bottom-right corner of marker 3, the other DPS on its top-left corner" }
+      ],
+      "telegraph": { "mode": "lookback", "s": 5 }, "conf": "v 385/427 resolutions hit the holder's 3 role-mates for ~50-130k; 2 absorbers take 300-800k and die, 1 takes ~1.5M; players inside both confetti die" },
     "0xC622": { "label": "Light of Judgment", "category": "raidwide", "shape": { "type": "none" }, "conf": "v" },
     "0xC24B": { "label": "Hyperdrive", "category": "tankbuster", "shape": { "type": "circle", "radius": 5, "origin": "target" }, "telegraph": { "mode": "lookback", "s": 2 }, "conf": "v id, i shape" },
 
     "0xBAAC": { "label": "Gravitas (purple tether)", "category": "raidwide", "shape": { "type": "none" }, "conf": "v" },
-    "0xBAB0": { "label": "Vitrophyre (yellow tether)", "category": "info", "shape": { "type": "circle", "radius": 5, "origin": "target" }, "knockback": true, "conf": "v" },
+    "0xBAB0": { "label": "Rock (Vitrophyre, yellow tether)", "category": "info", "shape": { "type": "circle", "radius": 5, "origin": "target" }, "knockback": true, "conf": "v" },
     "0xBAB1": { "label": "Gravitational Wave (west)", "category": "danger", "shape": { "type": "halfRoom", "origin": "fixed", "at": [100, 100], "heading": "fixed", "headingDeg": -90 }, "telegraph": { "mode": "lookback", "s": 5.1 }, "conf": "v" },
     "0xBAB2": { "label": "Intemperate Will (east)", "category": "danger", "shape": { "type": "halfRoom", "origin": "fixed", "at": [100, 100], "heading": "fixed", "headingDeg": 90 }, "telegraph": { "mode": "lookback", "s": 5.1 }, "conf": "v" },
-    "0xBAAF": { "label": "Gravity III (puddle soak)", "category": "soak", "shape": { "type": "circle", "radius": 5, "origin": "caster" }, "conf": "v (validate-shapes)" },
-    "0xBAAD": { "label": "Gravitational Explosion (puddle failed)", "category": "failure", "shape": { "type": "none" }, "conf": "v" },
+    "0xBAAF": { "label": "Gravity III (puddle soak)", "category": "soak", "soakers": 4, "shape": { "type": "circle", "radius": 5, "origin": "caster" },
+      "notBeforeS": 118, "notBeforeLabel": "after the 2nd confetti (Double-trouble Trap) knockback, ~2:01",
+      "conf": "v: player contact resolves the soak; damage is split among those inside (4 players ~50-125k each, 1 player ~1M = lethal); clean pulls soak at 2:01" },
+    "0xBAAD": { "label": "Gravitas puddles detonated", "category": "failure", "shape": { "type": "none" },
+      "failureCause": { "hazardEobjs": ["0x1EC022"], "triggerActions": ["0xBAB0"], "contactDistance": 10, "hazardRadius": 5, "playerContact": false, "windowS": 2,
+                        "triggerName": "Vitrophyre rock", "hazardName": "Gravitas puddle" },
+      "conf": "v: a rock origin within ~10y of a puddle center detonates it; no player was within 5y of a puddle at rock time in 268 resolutions (rr validate-contact BAB0 1EC022 BAAD)" },
     "0xBAB9": { "label": "Tele-trouncing", "category": "info", "shape": { "type": "none" }, "conf": "v" },
     "0xBABA": { "label": "Tele-trouncing (drop)", "category": "info", "shape": { "type": "none" }, "conf": "v" },
     "0xBAB5": { "label": "Indulgent Will (Confused)", "category": "debuff", "shape": { "type": "none" }, "conf": "v" },
@@ -207,6 +221,179 @@
       "0x0D": "P1 end (puzzle OK)", "0x08": "P1 enrage", "0x06": "P2 open (fail path)", "0x0E": "P2 open (ok path)"
     },
     "0x80000001": { "0x4F41": "P1 +10s", "0x4F42": "Graven Image II stage", "0x4F43": "Graven Image III stage", "0x4F44": "P2", "0x4F45": "reset" }
+  },
+
+  "mitigation": {
+    "source": "Ikuya Mitty DMU mitigation sheet (P1, P2)",
+    "note": "Reference, not gospel: entries are only flagged when the cooldown was available; the sheet asks for some cooldowns twice within their recast (e.g. D3 party mit at 0:38 and 1:58 with a 120s recast). D1-D4 = M1, M2, R1, R2. Free-text cells (P2 'Assist Tanks') are not checked.",
+    "mechanics": [
+      { "id": "mystery_magic_1", "name": "Mystery Magic", "atS": 38, "hits": ["0xBAA2", "0xBAA3"], "plan": [
+        { "slot": "MT", "use": ["@partyMit"], "jobs": ["GNB", "DRK"] },
+        { "slot": "OT", "use": ["Reprisal", "@partyMit"] },
+        { "slot": "WHM", "use": ["Temperance"] },
+        { "slot": "AST", "use": ["Neutral Sect", "Sun Sign"] },
+        { "slot": "SCH", "use": ["Spreadlo", "Expedient"] },
+        { "slot": "SGE", "use": ["Kerachole", "Zoe Shields"] },
+        { "slot": "D1", "use": ["Feint"] },
+        { "slot": "D3", "use": ["@partyMit"] } ] },
+      { "id": "wave_cannon", "name": "Wave Cannon", "atS": 43, "hits": ["0xBAA8"], "plan": [
+        { "slot": "MT", "use": ["@partyMit"], "jobs": ["WAR", "PLD"] },
+        { "slot": "MT", "carry": ["@partyMit"], "jobs": ["GNB", "DRK"] },
+        { "slot": "WHM", "use": ["Divine Caress"], "carry": ["Temperance"] },
+        { "slot": "AST", "carry": ["Neutral Sect", "Sun Sign"] },
+        { "slot": "SCH", "carry": ["Expedient"] },
+        { "slot": "SGE", "use": ["Holos"], "carry": ["Kerachole"] },
+        { "slot": "D1", "carry": ["Feint"] } ] },
+      { "id": "dt_trap_1", "name": "Double-Trouble Trap", "atS": 50, "hits": ["0xBAA7"], "plan": [
+        { "slot": "MT", "carry": ["@partyMit"], "jobs": ["GNB", "DRK"] },
+        { "slot": "WHM", "carry": ["Temperance"] },
+        { "slot": "AST", "carry": ["Neutral Sect", "Sun Sign"] },
+        { "slot": "SCH", "use": ["Sacred Soil"], "carry": ["Expedient"] },
+        { "slot": "SGE", "carry": ["Holos"] },
+        { "slot": "D1", "carry": ["Feint"] },
+        { "slot": "D4", "use": ["Addle"] } ] },
+      { "id": "loj_1", "name": "Light of Judgment", "atS": 63, "hits": ["0xC622"], "plan": [
+        { "slot": "MT", "use": ["Reprisal"] },
+        { "slot": "WHM", "use": ["Plenary Indulgence"] },
+        { "slot": "AST", "use": ["Collective Unconscious"] },
+        { "slot": "SCH", "carry": ["Sacred Soil"] },
+        { "slot": "SGE", "use": ["Kerachole"] },
+        { "slot": "D2", "use": ["Feint"] },
+        { "slot": "D4", "carry": ["Addle"] },
+        { "slot": "Extras", "use": ["@extra"] } ] },
+      { "id": "gravitas_2a", "name": "Gravitas II (Part I)", "atS": 88, "hits": ["0xBAAC"], "plan": [
+        { "slot": "AST", "use": ["Macrocosmos"] },
+        { "slot": "SCH", "use": ["Sacred Soil", "Seraphism"] } ] },
+      { "id": "gravitas_2b", "name": "Gravitas II (Part II)", "atS": 106, "hits": ["0xBAAC"], "plan": [
+        { "slot": "WHM", "use": ["Liturgy of the Bell"] },
+        { "slot": "SCH", "use": ["Summon Seraph", "Fey Illumination"] },
+        { "slot": "SGE", "use": ["Kerachole", "Philosophia"] } ] },
+      { "id": "dt_trap_2", "name": "Double-Trouble Trap", "atS": 118, "hits": ["0xBAA7"], "plan": [
+        { "slot": "OT", "use": ["Reprisal", "@partyMit"] },
+        { "slot": "SCH", "use": ["Spreadlo", "Sacred Soil"], "carry": ["Summon Seraph", "Fey Illumination"] },
+        { "slot": "SGE", "use": ["Panhaima", "Zoe Shields"] },
+        { "slot": "D3", "use": ["@partyMit"] } ] },
+      { "id": "loj_2", "name": "Light of Judgment", "atS": 132, "hits": ["0xC622"], "plan": [
+        { "slot": "MT", "use": ["Reprisal", "@partyMit"] },
+        { "slot": "WHM", "use": ["Plenary Indulgence"] },
+        { "slot": "AST", "use": ["Collective Unconscious"] },
+        { "slot": "SCH", "carry": ["Sacred Soil"] },
+        { "slot": "SGE", "use": ["Kerachole"], "carry": ["Panhaima"] },
+        { "slot": "D1", "use": ["Feint"] } ] },
+      { "id": "dt_trap_3", "name": "Double-Trouble Trap", "atS": 167, "windowS": 6, "hits": ["0xBAA7"], "plan": [
+        { "slot": "WHM", "use": ["Temperance"] },
+        { "slot": "AST", "use": ["Neutral Sect"] },
+        { "slot": "SCH", "use": ["Expedient"] } ] },
+      { "id": "indulgent_will", "name": "Indulgent Will", "atS": 174, "hits": ["0xBAB5", "0xBAB6"], "plan": [
+        { "slot": "WHM", "use": ["Divine Caress"], "carry": ["Temperance"] },
+        { "slot": "AST", "use": ["Sun Sign"] },
+        { "slot": "SCH", "use": ["Sacred Soil"], "carry": ["Expedient"] },
+        { "slot": "SGE", "use": ["Kerachole"] } ] },
+      { "id": "mystery_magic_3", "name": "Mystery Magic", "atS": 188, "hits": ["0xBAA2", "0xBAA3"], "plan": [
+        { "slot": "OT", "use": ["Reprisal"] },
+        { "slot": "WHM", "carry": ["Temperance"] },
+        { "slot": "AST", "carry": ["Sun Sign"] },
+        { "slot": "SCH", "carry": ["Sacred Soil"] },
+        { "slot": "SGE", "carry": ["Kerachole"] } ] },
+
+      { "id": "p2_ultimate_embrace_1", "name": "Ultimate Embrace", "atS": 221, "hits": ["0xC24C"], "plan": [
+        { "slot": "SCH", "use": ["Spreadlo"] },
+        { "slot": "SGE", "use": ["Holos"] },
+        { "slot": "D2", "use": ["Feint"] } ] },
+      { "id": "p2_forsaken", "name": "Forsaken", "atS": 237, "hits": ["0xBABC"], "plan": [
+        { "slot": "MT", "use": ["Reprisal"] },
+        { "slot": "OT", "use": ["@partyMit"] },
+        { "slot": "WHM", "use": ["Plenary Indulgence"] },
+        { "slot": "AST", "use": ["Collective Unconscious"] },
+        { "slot": "SCH", "use": ["Sacred Soil"], "carry": ["Spreadlo"] },
+        { "slot": "SGE", "use": ["Kerachole", "Zoe Shields"], "carry": ["Holos"] },
+        { "slot": "D1", "use": ["Feint"] },
+        { "slot": "D3", "use": ["@partyMit"] },
+        { "slot": "D4", "use": ["Addle"] },
+        { "slot": "Extras", "use": ["@extra"] } ] },
+      { "id": "p2_towers_1", "name": "Towers I", "atS": 250, "hits": ["0xBABE", "0xBAC0", "0xBAC1", "0xBAC2"], "plan": [
+        { "slot": "MT", "carry": ["Reprisal"] },
+        { "slot": "OT", "use": ["@partyMit"], "jobs": ["GNB", "DRK"] },
+        { "slot": "SCH", "use": ["Summon Seraph", "Fey Illumination"], "carry": ["Sacred Soil"] },
+        { "slot": "SGE", "use": ["Panhaima"], "carry": ["Kerachole"] },
+        { "slot": "D1", "carry": ["Feint"] },
+        { "slot": "D3", "carry": ["@partyMit"] },
+        { "slot": "D4", "carry": ["Addle"] } ] },
+      { "id": "p2_towers_2", "name": "Towers II (Past/Future's End)", "atS": 260, "hits": ["0xBAD6", "0xBAD7", "0xBAD8", "0xBAD9", "0xBABE", "0xBAC0", "0xBAC1", "0xBAC2"], "plan": [
+        { "slot": "SCH", "carry": ["Summon Seraph", "Fey Illumination"] },
+        { "slot": "SGE", "carry": ["Panhaima"] } ] },
+      { "id": "p2_towers_3", "name": "Towers III (All Things Ending)", "atS": 271, "hits": ["0xBABE", "0xBAC0", "0xBAC1", "0xBAC2"], "plan": [
+        { "slot": "MT", "use": ["@partyMit"] },
+        { "slot": "OT", "use": ["Reprisal"] },
+        { "slot": "AST", "use": ["Macrocosmos"] },
+        { "slot": "SCH", "use": ["Sacred Soil"] },
+        { "slot": "SGE", "use": ["Kerachole"] } ] },
+      { "id": "p2_towers_4", "name": "Towers IV (Past/Future's End)", "atS": 281, "hits": ["0xBAD6", "0xBAD7", "0xBAD8", "0xBAD9", "0xBABE", "0xBAC0", "0xBAC1", "0xBAC2"], "plan": [
+        { "slot": "MT", "carry": ["@partyMit"], "jobs": ["GNB", "DRK"] },
+        { "slot": "SCH", "carry": ["Sacred Soil"] },
+        { "slot": "SGE", "carry": ["Kerachole"] } ] },
+      { "id": "p2_towers_5", "name": "Towers V (All Things Ending)", "atS": 292, "hits": ["0xBABE", "0xBAC0", "0xBAC1", "0xBAC2"], "plan": [
+        { "slot": "WHM", "use": ["Temperance", "Divine Caress"] },
+        { "slot": "AST", "use": ["Neutral Sect"] },
+        { "slot": "SCH", "use": ["Expedient"] } ] },
+      { "id": "p2_towers_6", "name": "Towers VI (Past/Future's End)", "atS": 302, "hits": ["0xBAD6", "0xBAD7", "0xBAD8", "0xBAD9", "0xBABE", "0xBAC0", "0xBAC1", "0xBAC2"], "plan": [
+        { "slot": "MT", "use": ["Reprisal"] },
+        { "slot": "WHM", "use": ["Plenary Indulgence"], "carry": ["Temperance"] },
+        { "slot": "AST", "use": ["Collective Unconscious"] },
+        { "slot": "SCH", "use": ["Seraphism"], "carry": ["Expedient"] },
+        { "slot": "SGE", "use": ["Philosophia"] } ] },
+      { "id": "p2_towers_7", "name": "Towers VII (All Things Ending)", "atS": 312, "hits": ["0xBABE", "0xBAC0", "0xBAC1", "0xBAC2"], "plan": [
+        { "slot": "WHM", "use": ["Liturgy of the Bell"], "carry": ["Temperance"] },
+        { "slot": "AST", "use": ["Sun Sign"] },
+        { "slot": "SCH", "use": ["Sacred Soil"] },
+        { "slot": "SGE", "use": ["Kerachole"] } ] },
+      { "id": "p2_towers_8", "name": "Towers VIII (Past/Future's End)", "atS": 323, "hits": ["0xBAD6", "0xBAD7", "0xBAD8", "0xBAD9", "0xBABE", "0xBAC0", "0xBAC1", "0xBAC2"], "plan": [
+        { "slot": "WHM", "carry": ["Liturgy of the Bell"] },
+        { "slot": "AST", "carry": ["Sun Sign"] },
+        { "slot": "SCH", "carry": ["Sacred Soil"] },
+        { "slot": "SGE", "carry": ["Kerachole"] } ] },
+      { "id": "p2_light_of_judgment", "name": "Light of Judgement", "atS": 343, "hitNames": ["Light of Judgment", "Light of Judgement"], "plan": [
+        { "slot": "OT", "use": ["Reprisal", "@partyMit"] },
+        { "slot": "SCH", "use": ["Spreadlo", "Sacred Soil"] },
+        { "slot": "SGE", "use": ["Kerachole", "Holos", "Zoe Shields"] },
+        { "slot": "D1", "use": ["Feint"] },
+        { "slot": "D3", "use": ["@partyMit"] },
+        { "slot": "D4", "use": ["Addle"] } ] },
+      { "id": "p2_wings", "name": "Wings of Destruction", "atS": 371, "hitNames": ["Wings of Destruction"], "plan": [
+        { "slot": "MT", "use": ["Reprisal", "@partyMit"], "note": "WAR: use early to avoid shaking off mitigation" },
+        { "slot": "WHM", "use": ["Plenary Indulgence"] },
+        { "slot": "AST", "use": ["Collective Unconscious"] },
+        { "slot": "SCH", "use": ["Sacred Soil", "Fey Illumination", "Summon Seraph"] },
+        { "slot": "SGE", "use": ["Kerachole", "Panhaima"] },
+        { "slot": "D2", "use": ["Feint"] } ] },
+      { "id": "p2_ultimate_embrace_2", "name": "Ultimate Embrace", "atS": 378, "hits": ["0xC24C"], "plan": [
+        { "slot": "MT", "carry": ["Reprisal", "@partyMit"] },
+        { "slot": "WHM", "carry": ["Plenary Indulgence"] },
+        { "slot": "AST", "carry": ["Collective Unconscious"] },
+        { "slot": "SCH", "carry": ["Sacred Soil", "Fey Illumination", "Summon Seraph"] },
+        { "slot": "SGE", "carry": ["Kerachole", "Panhaima"] },
+        { "slot": "D2", "carry": ["Feint"] } ] }
+    ]
+  },
+
+  "arrowPuzzle": {
+    "label": "Tele-trouncing arrows",
+    "teleporterEobj": "0x1EC023",
+    "arrowStatus": "Tele-portent",
+    "arrowDirections": {
+      "0x130C": "N", "0x13D7": "N", "0x130D": "S", "0x13D8": "S",
+      "0x130E": "E", "0x13D9": "E", "0x130F": "W", "0x13DA": "W"
+    },
+    "confusedStatus": "Confused",
+    "center": [100, 100],
+    "halfSize": 12,
+    "step": 6,
+    "clockwise": true,
+    "tolerance": 1.75,
+    "triggerRadius": 2,
+    "hopMs": 750,
+    "maxChain": 4,
+    "conf": "v 21 clean pulls: 16 slots on a ±12 square, 6y apart, clockwise; a Confused player is chained through at most 4 arrows (#37 stops on an unused 5th); a landing 2.3y from an arrow does not chain (#43). Dropping an arrow on an existing one (≲4y) removes both."
   },
 
   "failureActions": ["0xBAAB", "0xBAAD", "0xBABF", "0xBABB"]

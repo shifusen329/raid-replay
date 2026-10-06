@@ -1,0 +1,371 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Numerics;
+using System.Runtime.CompilerServices;
+using System.Text;
+using RaidReplay.Core.Analysis;
+using RaidReplay.Core.GameData;
+using RaidReplay.Core.Model;
+using RaidReplay.Rendering;
+
+namespace RaidReplay.Windows;
+
+/// <summary>
+/// Pre-formatted view model of a <see cref="WipeReport"/>. Every string the report UI shows is built once per report
+/// (on the analysis thread for live wipes), so drawing the card is just layout. Contains no ImGui calls.
+/// </summary>
+public sealed class WipeCard
+{
+    private static readonly ConditionalWeakTable<WipeReport, WipeCard> Cache = new();
+
+    private WipeCard(WipeReport report, bool anonymize)
+    {
+        Report = report;
+        Anonymized = anonymize;
+        var s = report.Pull.Summary;
+        var root = report.RootCause;
+        var deaths = report.Incidents.Count(i => i.Kind is IncidentKind.Death or IncidentKind.FellOff);
+
+        Verdict = report.Verdict.Length > 0 ? report.Verdict : s.Outcome.ToString();
+        VerdictColor = root != null ? Theme.Severity(root) : s.Outcome == PullOutcome.Clear ? Theme.Good : Theme.SevMinor;
+        TimeChip = root != null ? Timeline.Fmt(root.T)[..^2] : Timeline.Fmt(s.DurationMs)[..^2];
+        MechanicChip = root?.Mechanic ?? report.Segment;
+        PhaseChip = report.Phase.Length > 0 && report.Phase != MechanicChip ? report.Phase : null;
+        Meta = $"Pull #{s.Ordinal} · {s.StartLocal:ddd MM-dd HH:mm} · {Timeline.Fmt(s.DurationMs)[..^2]} long" +
+               (s.BossHpPct >= 0 ? $" · boss {s.BossHpPct:0.0}%" : "") +
+               $" · {deaths} death{(deaths == 1 ? "" : "s")} · {s.Outcome}";
+
+        foreach (var inc in report.Incidents)
+        {
+            var row = new IncidentRow(this, inc);
+            All.Add(row);
+            if (ReferenceEquals(inc, root))
+                Root = row;
+            else
+                Contributing.Add(row);
+        }
+
+        ContributingTitle = $"Contributing incidents ({Contributing.Count})";
+
+        foreach (var slot in PartySlots.Order)
+        {
+            var p = report.Slots.FirstOrDefault(kv => kv.Value == slot).Key;
+            if (p != null)
+                Party.Add(new Culprit(p.Job, slot, $"{slot} · {Jobs.Abbrev(p.Job)} · {Name(p)}"));
+        }
+
+        Notes.AddRange(report.Notes);
+        if (report.LearnedPulls > 0)
+            Footnote = $"Expected positions learned from {report.LearnedPulls} pulls of this fight.";
+
+        BuildMitigation(report);
+        Clipboard = BuildClipboard(report);
+    }
+
+    public WipeReport Report { get; }
+    public bool Anonymized { get; }
+    public string Verdict { get; }
+    public Vector4 VerdictColor { get; }
+    public string TimeChip { get; }
+    public string? MechanicChip { get; }
+    public string? PhaseChip { get; }
+    public string Meta { get; }
+    public IncidentRow? Root { get; }
+    public List<IncidentRow> All { get; } = [];
+    public List<IncidentRow> Contributing { get; } = [];
+    public string ContributingTitle { get; private set; } = string.Empty;
+    public List<Culprit> Party { get; } = [];
+    public List<string> Notes { get; } = [];
+    public string? Footnote { get; }
+    public string MitigationTitle { get; private set; } = string.Empty;
+    public List<MitRow> Mitigation { get; } = [];
+    public string Clipboard { get; }
+
+    /// <summary>The card for a report, built on first use and cached for the report's lifetime. Thread-safe.</summary>
+    public static WipeCard For(WipeReport report, bool anonymize)
+    {
+        if (Cache.TryGetValue(report, out var card) && card.Anonymized == anonymize)
+            return card;
+        card = new WipeCard(report, anonymize);
+        Cache.AddOrUpdate(report, card);
+        return card;
+    }
+
+    public IncidentRow? RowFor(Incident? inc)
+    {
+        if (inc == null)
+            return null;
+        foreach (var r in All)
+        {
+            if (ReferenceEquals(r.Inc, inc))
+                return r;
+        }
+
+        return null;
+    }
+
+    internal string Name(Actor a) => Anonymized ? Jobs.Abbrev(a.Job) : a.Name;
+
+    internal string Slot(Actor a)
+    {
+        var slot = Report.SlotOf(a);
+        return slot.Length > 0 ? slot : Jobs.Abbrev(a.Job);
+    }
+
+    private void BuildMitigation(WipeReport report)
+    {
+        if (report.Mitigation.Count == 0)
+            return;
+        var missing = report.Mitigation.Sum(c => c.Missing.Count());
+        MitigationTitle = $"Mitigation vs plan · {(missing > 0 ? $"{missing} missing" : "nothing missing")}" +
+                          $" ({report.Pull.Encounter?.Def.Mitigation?.Source})###mitplan";
+        foreach (var check in report.Mitigation)
+        {
+            var active = check.Entries.Count(e => e.Status == MitStatus.Active);
+            var miss = check.Missing.Count();
+            Mitigation.Add(new MitRow
+            {
+                Header = true,
+                Mechanic = $"{Timeline.Fmt(check.T)[..^2]} {check.Mechanic.Name}",
+                Status = $"{active}/{check.Entries.Count} up{(check.HitFound ? "" : " (hit not found)")}",
+                Color = miss > 0 ? new Vector4(1, 0.6f, 0.5f, 1) : new Vector4(0.6f, 0.9f, 0.6f, 1),
+            });
+            foreach (var e in check.Entries)
+            {
+                var (label, color) = e.Status switch
+                {
+                    MitStatus.Active => ("up", new Vector4(0.5f, 0.95f, 0.5f, 1)),
+                    MitStatus.Missing => ("MISSING", Theme.SevCritical),
+                    MitStatus.UsedNotActive => (e.Blamable ? "LATE / NOT UP" : "not up", Theme.SevMajor),
+                    MitStatus.OnCooldown => ("on cooldown", Theme.TextDim),
+                    MitStatus.SheetConflict => ("sheet conflict", Theme.TextDim),
+                    MitStatus.Expired => ("expired", new Vector4(0.8f, 0.75f, 0.5f, 1)),
+                    MitStatus.NeedsPrerequisite => ("needs prerequisite", new Vector4(0.8f, 0.75f, 0.5f, 1)),
+                    MitStatus.Dead => ("dead", Theme.TextDim),
+                    _ => (e.Status.ToString(), Theme.TextDim),
+                };
+                Mitigation.Add(new MitRow
+                {
+                    Active = e.Status == MitStatus.Active,
+                    Job = e.Player.Job,
+                    Player = $"{Slot(e.Player)} {Name(e.Player)}",
+                    Planned = e.Ability.Name + (e.Carry ? " (carry)" : string.Empty),
+                    Status = label,
+                    Detail = e.Detail,
+                    Color = color,
+                });
+            }
+        }
+    }
+
+    private string BuildClipboard(WipeReport report)
+    {
+        var s = report.Pull.Summary;
+        var sb = new StringBuilder();
+        sb.Append("[Raid Replay] ").Append(Verdict).Append(" — ").Append(TimeChip);
+        if (MechanicChip != null)
+            sb.Append(" · ").Append(MechanicChip);
+        sb.Append($" (pull #{s.Ordinal}, {Timeline.Fmt(s.DurationMs)[..^2]}");
+        if (report.Phase.Length > 0)
+            sb.Append(", ").Append(report.Phase);
+        if (s.BossHpPct >= 0)
+            sb.Append($", boss {s.BossHpPct:0.0}%");
+        sb.AppendLine(")");
+        if (Root != null)
+        {
+            sb.Append("Root cause ").Append(Root.Time).Append(": ").Append(Root.Title);
+            if (Root.Culprits.Count > 0)
+                sb.Append(" — ").Append(string.Join(", ", Root.Culprits.Select(c => c.Label)));
+            sb.AppendLine();
+            if (Root.Detail.Length > 0)
+                sb.AppendLine(Root.Detail);
+        }
+
+        if (Contributing.Count > 0)
+        {
+            sb.AppendLine("Contributing:");
+            foreach (var r in Contributing.Take(15))
+                sb.Append("• ").Append(r.Time).Append(' ').Append(r.Kind).Append(" — ").Append(r.Title)
+                  .Append(r.DetailShort.Length > 0 ? $": {r.DetailShort}" : string.Empty).AppendLine();
+            if (Contributing.Count > 15)
+                sb.AppendLine($"… and {Contributing.Count - 15} more");
+        }
+
+        foreach (var n in Notes)
+            sb.Append("· ").AppendLine(n);
+        return sb.ToString().TrimEnd();
+    }
+
+    /// <summary>The first sentence/clause of a detail string, for one-line display.</summary>
+    internal static string FirstSentence(string detail, out bool more)
+    {
+        more = false;
+        if (detail.Length <= 150)
+            return detail;
+        foreach (var sep in new[] { "; ", ". ", " — " })
+        {
+            var i = detail.IndexOf(sep, 25, StringComparison.Ordinal);
+            if (i > 0 && i <= 170)
+            {
+                more = true;
+                return detail[..i].TrimEnd('.') + (sep == ". " ? "." : string.Empty);
+            }
+        }
+
+        more = true;
+        return detail[..140].TrimEnd() + "…";
+    }
+}
+
+/// <summary>A player reference shown as a chip: job icon, label and tooltip.</summary>
+public readonly record struct Culprit(byte Job, string Label, string Tooltip);
+
+/// <summary>Pre-formatted incident.</summary>
+public sealed class IncidentRow
+{
+    internal IncidentRow(WipeCard card, Incident inc)
+    {
+        Inc = inc;
+        Time = Timeline.Fmt(inc.T);
+        Kind = Theme.KindLabel(inc.Kind);
+        Color = Theme.Severity(inc);
+        Title = inc.Title;
+        Mechanic = inc.Mechanic;
+        Detail = inc.Detail;
+        DetailShort = WipeCard.FirstSentence(inc.Detail, out var more);
+        HasMore = more;
+        foreach (var p in inc.Players.Distinct())
+            Culprits.Add(new Culprit(p.Job, $"{card.Slot(p)} {card.Name(p)}", $"{card.Slot(p)} · {Jobs.Abbrev(p.Job)} · {p.Name}"));
+        Caption = (inc.IsRootCause ? "ROOT CAUSE · " : "") + Kind.ToUpperInvariant() + (inc.IsRootCause ? $" · {Time}" : "") +
+                  (Mechanic != null ? $" · {Mechanic}" : "");
+        MapCaption = $"{(inc.IsRootCause ? "Root cause" : Kind)} at {Time}. Rings: where players should have been.";
+        Tooltip = $"{Kind} at {Time}" + (Mechanic != null ? $" · {Mechanic}" : "") + (inc.IsRootCause ? " · ROOT CAUSE" : "") +
+                  (Detail.Length > 0 ? $"\n{Wrap(Detail, 90)}" : "") + "\n\nClick to select · arrow / double-click to expand";
+
+        foreach (var s in inc.Snapshot.OrderByDescending(s => s.Involved).ThenBy(s => Array.IndexOf(PartySlots.Order, s.Slot)))
+            Snapshot.Add(new SnapRow(card, s));
+
+        if (inc.Mitigation is { } check)
+        {
+            var active = check.Entries.Count(e => e.Status == MitStatus.Active);
+            var missing = check.Missing.Select(e => $"{card.Slot(e.Player)} {e.Ability.Name}").ToList();
+            MitSummary = $"Mitigation at this hit: {active}/{check.Entries.Count} up" +
+                         (missing.Count > 0 ? $" · missing: {string.Join(", ", missing)}" : "");
+        }
+    }
+
+    public Incident Inc { get; }
+    public string Time { get; }
+    public string Kind { get; }
+    public Vector4 Color { get; }
+    public string Title { get; }
+    public string? Mechanic { get; }
+    public string Detail { get; }
+    public string DetailShort { get; }
+    public bool HasMore { get; }
+    public List<Culprit> Culprits { get; } = [];
+    public List<SnapRow> Snapshot { get; } = [];
+    public string? MitSummary { get; }
+    public string Caption { get; }
+    public string MapCaption { get; }
+    public string Tooltip { get; }
+
+    // UI-side caches (width-dependent ellipsis of the title).
+    internal float EllipsisWidth;
+    internal string? Ellipsis;
+
+    internal static string Wrap(string text, int width)
+    {
+        if (text.Length <= width)
+            return text;
+        var sb = new StringBuilder(text.Length + 8);
+        var line = 0;
+        foreach (var word in text.Split(' '))
+        {
+            if (line > 0 && line + word.Length + 1 > width)
+            {
+                sb.Append('\n');
+                line = 0;
+            }
+            else if (line > 0)
+            {
+                sb.Append(' ');
+                line++;
+            }
+
+            sb.Append(word);
+            line += word.Length;
+        }
+
+        return sb.ToString();
+    }
+}
+
+/// <summary>Pre-formatted snapshot-table row.</summary>
+public sealed class SnapRow
+{
+    internal SnapRow(WipeCard card, PlayerSnapshot s)
+    {
+        Job = s.Player.Job;
+        Involved = s.Involved;
+        Alive = s.Alive;
+        Label = $"{(s.Involved ? "● " : "")}{(s.Slot.Length > 0 ? s.Slot : Jobs.Abbrev(s.Player.Job))} {card.Name(s.Player)}{(s.Alive ? "" : " (dead)")}";
+        Color = !s.Alive ? Theme.TextDim : s.Involved ? new Vector4(1, 0.6f, 0.5f, 1) : Theme.Text;
+        Hp = s.HpPct >= 0 ? $"{s.HpPct:0}%" : "–";
+        Dir = ReportView.Compass(s.Heading);
+        Pos = $"{s.Pos.X:0.0}, {s.Pos.Y:0.0}";
+        var tip = new StringBuilder();
+        tip.Append($"{s.Slot} · {Jobs.Abbrev(s.Player.Job)} · {s.Player.Name}");
+        tip.Append($"\nHP {Hp} · facing {Dir} · at ({Pos})");
+        if (s.Expected is { } e)
+        {
+            var d = e - s.Pos;
+            var dir = d.LengthSquared() > 0.01f ? ReportView.Compass(MathF.Atan2(d.X, d.Y)) : "";
+            Miss = $"{s.MissDistance:0.0}y {dir}".TrimEnd();
+            MissColor = Palette.ForExpected(s.ExpectedSource);
+            Why = s.ExpectedNote ?? s.ExpectedSource switch
+            {
+                ExpectedSource.Learned => "usual spot",
+                ExpectedSource.Soak => "soak position",
+                ExpectedSource.SafeSpot => "nearest safe spot",
+                ExpectedSource.Assigned => "assigned spot",
+                _ => "",
+            };
+            tip.Append($"\nShould have been at ({e.X:0.0}, {e.Y:0.0}): {s.MissDistance:0.0}y {dir} of where they stood ({Why})");
+        }
+
+        if (s.Involved)
+            tip.Append("\nInvolved in this incident");
+        if (!s.Alive)
+            tip.Append("\nDead at this moment");
+        Tooltip = tip.ToString();
+    }
+
+    public byte Job { get; }
+    public bool Involved { get; }
+    public bool Alive { get; }
+    public string Label { get; }
+    public Vector4 Color { get; }
+    public string Hp { get; }
+    public string Dir { get; }
+    public string Pos { get; }
+    public string Miss { get; } = string.Empty;
+    public Vector4 MissColor { get; }
+    public string Why { get; } = string.Empty;
+    public string Tooltip { get; }
+}
+
+/// <summary>Pre-formatted mitigation-plan row (a mechanic header or one planned cooldown).</summary>
+public sealed class MitRow
+{
+    public bool Header { get; init; }
+    public bool Active { get; init; }
+    public byte Job { get; init; }
+    public string Mechanic { get; init; } = string.Empty;
+    public string Player { get; init; } = string.Empty;
+    public string Planned { get; init; } = string.Empty;
+    public string Status { get; init; } = string.Empty;
+    public string Detail { get; init; } = string.Empty;
+    public Vector4 Color { get; init; }
+}

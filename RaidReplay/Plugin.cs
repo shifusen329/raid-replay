@@ -7,6 +7,7 @@ using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using RaidReplay.Core.Analysis;
 using RaidReplay.GameData;
+using RaidReplay.Rendering;
 using RaidReplay.Services;
 using RaidReplay.Windows;
 
@@ -26,6 +27,7 @@ public sealed class Plugin : IDalamudPlugin
 
     private const string CommandName = "/raidreplay";
     private const string CommandAlias = "/rreplay";
+    private const string AarCommand = "/aar";
 
     public readonly WindowSystem WindowSystem = new("RaidReplay");
 
@@ -34,22 +36,27 @@ public sealed class Plugin : IDalamudPlugin
         Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         Service = new ReplayService(Configuration, new LuminaGameData(DataManager.Excel),
                                     PluginInterface.GetPluginConfigDirectory());
+        Theme.Init(PluginInterface.UiBuilder);
 
         ConfigWindow = new ConfigWindow(Configuration, Service);
         ReplayWindow = new ReplayWindow(this, Service, Configuration);
         WipeReportWindow = new WipeReportWindow(this, Service, Configuration);
+        SidePanelWindow = new SidePanelWindow(ReplayWindow, Configuration) { IsOpen = Configuration.SidePanelPoppedOut };
+        ReplayWindow.Popout = SidePanelWindow;
         WindowSystem.AddWindow(ConfigWindow);
         WindowSystem.AddWindow(ReplayWindow);
         WindowSystem.AddWindow(WipeReportWindow);
+        WindowSystem.AddWindow(SidePanelWindow);
 
         var help = new CommandInfo(OnCommand)
         {
-            HelpMessage = "Open the raid replay window. '/raidreplay report' shows the last wipe report, '/raidreplay config' the settings.",
+            HelpMessage = "Open the raid replay window. '/raidreplay report' (or /aar) shows the last after-action report, '/raidreplay config' the settings.",
         };
         CommandManager.AddHandler(CommandName, help);
         CommandManager.AddHandler(CommandAlias, new CommandInfo(OnCommand) { HelpMessage = "Alias of /raidreplay.", ShowInHelp = false });
+        CommandManager.AddHandler(AarCommand, new CommandInfo((_, _) => ToggleReport()) { HelpMessage = "Open the after-action report of the last wipe (again to close)." });
 
-        PluginInterface.UiBuilder.Draw += WindowSystem.Draw;
+        PluginInterface.UiBuilder.Draw += DrawUi;
         PluginInterface.UiBuilder.OpenConfigUi += ToggleConfigUi;
         PluginInterface.UiBuilder.OpenMainUi += ToggleMainUi;
         Framework.Update += OnFrameworkUpdate;
@@ -65,6 +72,7 @@ public sealed class Plugin : IDalamudPlugin
     private ConfigWindow ConfigWindow { get; }
     private ReplayWindow ReplayWindow { get; }
     private WipeReportWindow WipeReportWindow { get; }
+    private SidePanelWindow SidePanelWindow { get; }
 
     public void Dispose()
     {
@@ -72,7 +80,7 @@ public sealed class Plugin : IDalamudPlugin
         DutyState.DutyWiped -= OnDutyEvent;
         DutyState.DutyCompleted -= OnDutyEvent;
         Framework.Update -= OnFrameworkUpdate;
-        PluginInterface.UiBuilder.Draw -= WindowSystem.Draw;
+        PluginInterface.UiBuilder.Draw -= DrawUi;
         PluginInterface.UiBuilder.OpenConfigUi -= ToggleConfigUi;
         PluginInterface.UiBuilder.OpenMainUi -= ToggleMainUi;
         WindowSystem.RemoveAllWindows();
@@ -81,7 +89,9 @@ public sealed class Plugin : IDalamudPlugin
         WipeReportWindow.Dispose();
         CommandManager.RemoveHandler(CommandName);
         CommandManager.RemoveHandler(CommandAlias);
+        CommandManager.RemoveHandler(AarCommand);
         Service.Dispose();
+        Theme.Dispose();
     }
 
     private void OnFrameworkUpdate(IFramework framework) =>
@@ -90,16 +100,33 @@ public sealed class Plugin : IDalamudPlugin
 
     private void OnDutyEvent(Dalamud.Game.DutyState.IDutyStateEventArgs args) => Service.NudgeLive();
 
+    /// <summary>A live report waiting to be shown; picked up by the next UI frame.</summary>
+    private WipeReport? pendingReport;
+
     private void OnLiveReport(WipeReport report)
     {
-        // Raised on a background thread; touch UI/chat on the framework thread.
-        Framework.RunOnFrameworkThread(() =>
+        // Raised on the analysis thread. Format every string of the wipe card here, so the UI only lays it out, then
+        // hand the report to the very next UI frame (no framework-thread hop).
+        try
         {
-            if (Configuration.ChatSummary)
-                ChatGui.Print(report.ChatLine.Replace("[Raid Replay] ", string.Empty), "RaidReplay");
-            if (Configuration.AutoOpenReport)
-                WipeReportWindow.Show(report);
-        });
+            WipeCard.For(report, Configuration.AnonymizeNames);
+        }
+        catch (Exception e)
+        {
+            Log.Warning(e, "Pre-formatting the wipe card failed; it will be built on first draw");
+        }
+
+        if (Configuration.AutoOpenReport)
+            System.Threading.Volatile.Write(ref pendingReport, report);
+        if (Configuration.ChatSummary)
+            Framework.RunOnFrameworkThread(() => ChatGui.Print(report.ChatLine.Replace("[Raid Replay] ", string.Empty), "RaidReplay"));
+    }
+
+    private void DrawUi()
+    {
+        if (System.Threading.Interlocked.Exchange(ref pendingReport, null) is { } report)
+            WipeReportWindow.Show(report);
+        WindowSystem.Draw();
     }
 
     public void ShowLiveReport(WipeReport report) => WipeReportWindow.Show(report);
@@ -107,8 +134,7 @@ public sealed class Plugin : IDalamudPlugin
     public void OpenReplayAt(WipeReport report, Incident? incident)
     {
         Service.ShowReport(report);
-        ReplayWindow.IsOpen = true;
-        ReplayWindow.SelectIncident(incident ?? report.RootCause);
+        ReplayWindow.ShowIncident(report, incident);
     }
 
     private void OnCommand(string command, string args)
@@ -120,7 +146,7 @@ public sealed class Plugin : IDalamudPlugin
                 ToggleConfigUi();
                 break;
             case "report":
-                WipeReportWindow.IsOpen = !WipeReportWindow.IsOpen;
+                ToggleReport();
                 break;
             default:
                 ToggleMainUi();
@@ -130,4 +156,12 @@ public sealed class Plugin : IDalamudPlugin
 
     public void ToggleConfigUi() => ConfigWindow.Toggle();
     public void ToggleMainUi() => ReplayWindow.Toggle();
+
+    /// <summary>Opens the after-action report on top of everything, or closes it if it is already open.</summary>
+    public void ToggleReport()
+    {
+        WipeReportWindow.IsOpen = !WipeReportWindow.IsOpen;
+        if (WipeReportWindow.IsOpen)
+            WipeReportWindow.BringToFront();
+    }
 }

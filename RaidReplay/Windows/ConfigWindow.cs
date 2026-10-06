@@ -8,6 +8,7 @@ using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
 using RaidReplay.Core.Encounters;
 using RaidReplay.Core.Indexing;
+using RaidReplay.Rendering;
 using RaidReplay.Services;
 
 namespace RaidReplay.Windows;
@@ -28,6 +29,10 @@ public sealed class ConfigWindow : Window, IDisposable
     }
 
     public void Dispose() { }
+
+    public override void PreDraw() => Theme.PushWindow();
+
+    public override void PostDraw() => Theme.PopWindow();
 
     private void SetBuffer(string s)
     {
@@ -52,11 +57,111 @@ public sealed class ConfigWindow : Window, IDisposable
                 DrawLive();
         }
 
+        using (var tab = ImRaii.TabItem("Display"))
+        {
+            if (tab.Success)
+            {
+                Theme.Wrapped("Replay canvas display options. The same menu is on the canvas itself (eye icon, top right).", Theme.TextDim);
+                ImGui.Spacing();
+                DrawDisplayOptions(config);
+            }
+        }
+
         using (var tab = ImRaii.TabItem("Encounters"))
         {
             if (tab.Success)
                 DrawEncounters();
         }
+    }
+
+    private static readonly string[] LabelModes = ["All labels", "Declutter", "Hover only"];
+
+    /// <summary>
+    /// Canvas display options (shared by the replay canvas's View menu and the Display tab). Saves on change.
+    /// </summary>
+    public static void DrawDisplayOptions(Configuration config)
+    {
+        var changed = false;
+
+        Theme.Caption("LABELS");
+        var mode = Math.Clamp(config.LabelMode, 0, 2);
+        ImGui.SetNextItemWidth(150 * Dalamud.Interface.Utility.ImGuiHelpers.GlobalScale);
+        using (var combo = ImRaii.Combo("Canvas labels", LabelModes[mode]))
+        {
+            if (combo.Success)
+            {
+                for (var i = 0; i < LabelModes.Length; i++)
+                {
+                    if (ImGui.Selectable(LabelModes[i], i == mode))
+                    {
+                        config.LabelMode = i;
+                        changed = true;
+                    }
+                }
+            }
+        }
+
+        Theme.Help("All labels: every name, cast and marker label, as they come.\n" +
+                   "Declutter: identical labels near each other merge into one (\"×3\"), overlapping labels are nudged, " +
+                   "and low-priority ones that still collide are dropped. Player names are always kept.\n" +
+                   "Hover only: enemy, cast and marker labels appear only near the mouse; player names stay.");
+        Toggle("Player names", config.ShowNames, v => config.ShowNames = v, "Names under players.", ref changed);
+        Toggle("Anonymize names", config.AnonymizeNames, v => config.AnonymizeNames = v, "Show job abbreviations instead of names everywhere.", ref changed);
+
+        Theme.Caption("PLAYERS");
+        Toggle("Job icons", config.ShowJobIcons, v => config.ShowJobIcons = v, "Job icons instead of role-coloured dots.", ref changed);
+        Toggle("Movement trails", config.ShowTrails, v => config.ShowTrails = v, "A fading line of where each player was over the last seconds.", ref changed);
+        if (config.ShowTrails)
+        {
+            var secs = config.TrailSeconds;
+            ImGui.SetNextItemWidth(150 * Dalamud.Interface.Utility.ImGuiHelpers.GlobalScale);
+            if (ImGui.SliderFloat("Trail length", ref secs, 0.5f, 10f, "%.1f s"))
+            {
+                config.TrailSeconds = secs;
+                changed = true;
+            }
+        }
+
+        Toggle("Pets", config.ShowPets, v => config.ShowPets = v, "Summoner/scholar pets and other player-owned actors.", ref changed);
+
+        Theme.Caption("ENEMIES");
+        Toggle("Cast bars", config.ShowCastBars, v => config.ShowCastBars = v, "Cast bar and ability name under casting enemies.", ref changed);
+        Toggle("Hit lines", config.ShowHitLines, v => config.ShowHitLines = v, "Brief red lines from an enemy to the players its single-target hits (tankbusters, autos) land on.", ref changed);
+        Toggle("Helpers / hidden actors", config.ShowHelpers, v => config.ShowHelpers = v, "Invisible helper actors that cast many boss AoEs.", ref changed);
+
+        Theme.Caption("MECHANICS");
+        Toggle("Head markers", config.ShowHeadMarkers, v => config.ShowHeadMarkers = v, "Diamond and label above players with a head marker.", ref changed);
+        Toggle("Tethers", config.ShowTethers, v => config.ShowTethers = v, "Lines between tethered actors.", ref changed);
+        Toggle("Fake AoEs", config.ShowFakeAoes, v => config.ShowFakeAoes = v, "Telegraphs that do nothing (shown faint grey).", ref changed);
+        Toggle("Inferred telegraphs", config.ShowInferredTelegraphs, v => config.ShowInferredTelegraphs = v, "AoEs not visible in the log, reconstructed from the encounter pack (thin outlines).", ref changed);
+        Toggle("Fill AoEs", config.FillAoes, v => config.FillAoes = v, "Off: outlines only, so the map underneath stays readable.", ref changed);
+        Toggle("Outline room-wide AoEs", config.OutlineRoomWideAoes, v => config.OutlineRoomWideAoes = v, "Raidwides and AoEs covering most of the arena are drawn as outlines instead of hiding everything.", ref changed);
+        var op = config.AoeOpacity;
+        ImGui.SetNextItemWidth(150 * Dalamud.Interface.Utility.ImGuiHelpers.GlobalScale);
+        if (ImGui.SliderFloat("AoE opacity", ref op, 0.05f, 0.8f, "%.2f"))
+        {
+            config.AoeOpacity = op;
+            changed = true;
+        }
+
+        Theme.Caption("MAP");
+        Toggle("Map texture", config.ShowMapTexture, v => config.ShowMapTexture = v, "The game's map under the arena.", ref changed);
+        Toggle("Legend", config.ShowLegend, v => config.ShowLegend = v, "Legend of every marker and AoE colour in the corner of the canvas.", ref changed);
+
+        if (changed)
+            config.Save();
+    }
+
+    private static void Toggle(string label, bool value, Action<bool> set, string tooltip, ref bool changed)
+    {
+        if (ImGui.Checkbox(label, ref value))
+        {
+            set(value);
+            changed = true;
+        }
+
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip(tooltip);
     }
 
     private void DrawLogs()
@@ -74,8 +179,10 @@ public sealed class ConfigWindow : Window, IDisposable
             service.ChangeLogsDirectory();
         }
 
-        if (!Directory.Exists(config.LogsDirectory))
-            ImGui.TextColored(new Vector4(1, 0.4f, 0.4f, 1), "Folder not found.");
+        if (!Directory.Exists(config.ResolvedLogsDirectory()))
+            ImGui.TextColored(new Vector4(1, 0.4f, 0.4f, 1), $"Folder not found: {config.ResolvedLogsDirectory()}");
+        else if (config.LogsDirectory.Contains('%'))
+            ImGui.TextDisabled(config.ResolvedLogsDirectory());
         if (ImGui.SmallButton("Reset to default"))
             SetBuffer(Configuration.DefaultLogsDirectory);
 

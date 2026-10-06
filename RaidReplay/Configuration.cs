@@ -41,8 +41,33 @@ public class Configuration : IPluginConfiguration
     public float AoeOpacity { get; set; } = 0.35f;
     public float PlaybackSpeed { get; set; } = 1f;
 
-    public static string DefaultLogsDirectory =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Advanced Combat Tracker", "FFXIVLogs");
+    /// <summary>Fill AoE shapes (off = outlines only, so the map stays readable).</summary>
+    public bool FillAoes { get; set; } = true;
+
+    /// <summary>Draw raidwides and AoEs that cover most of the arena as outlines only.</summary>
+    public bool OutlineRoomWideAoes { get; set; } = true;
+
+    /// <summary>Canvas labels: 0 = all, 1 = declutter (merge duplicates, nudge or drop overlaps), 2 = hover only.</summary>
+    public int LabelMode { get; set; } = 1;
+
+    public bool ShowLegend { get; set; }
+
+    // Replay window layout (unscaled px)
+    public float PullListWidth { get; set; } = 380;
+    public float SidePanelWidth { get; set; } = 440;
+    public bool PullListCollapsed { get; set; }
+    public bool SidePanelCollapsed { get; set; }
+    public bool SidePanelPoppedOut { get; set; }
+
+    // Playback
+    public bool LoopPlayback { get; set; }
+    public bool FollowPlayhead { get; set; } = true;
+
+    /// <summary>Default ACT log folder. Stored unexpanded so the setting is portable; environment variables are expanded on use.</summary>
+    public const string DefaultLogsDirectory = @"%USERPROFILE%\AppData\Roaming\Advanced Combat Tracker\FFXIVLogs";
+
+    /// <summary>The log folder with environment variables (e.g. %USERPROFILE%) expanded.</summary>
+    public string ResolvedLogsDirectory() => Environment.ExpandEnvironmentVariables(LogsDirectory);
 
     public void Save() => Plugin.PluginInterface.SavePluginConfig(this);
 }

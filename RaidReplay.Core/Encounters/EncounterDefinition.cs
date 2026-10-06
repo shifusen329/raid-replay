@@ -63,7 +63,98 @@ public sealed class EncounterDefinition
     public Dictionary<string, string> Statuses { get; set; } = new();
     public Dictionary<string, Dictionary<string, string>> Director { get; set; } = new();
     public List<HexId> FailureActions { get; set; } = [];
+    public MitigationPlanDef? Mitigation { get; set; }
+    public ArrowSquareDef? ArrowPuzzle { get; set; }
     public string? Notes { get; set; }
+}
+
+/// <summary>
+/// An arrow-teleporter puzzle (e.g. DMU Tele-trouncing): every player drops directional teleporters when their arrow
+/// debuffs expire, and Confused players later walk onto them and get chained from arrow to arrow. The intended layout
+/// is a square of slots around <see cref="Center"/> with every arrow pointing along the perimeter; it is only used to
+/// say whose arrow was out of place when a chain breaks (groups may use other layouts that still chain).
+/// </summary>
+public sealed class ArrowSquareDef
+{
+    public string Label { get; set; } = "Arrows";
+    public HexId TeleporterEobj { get; set; }
+
+    /// <summary>Name (prefix) of the debuff whose expiry drops a teleporter (e.g. "Tele-portent").</summary>
+    public string ArrowStatus { get; set; } = string.Empty;
+
+    /// <summary>Arrow direction (N/E/S/W) of each arrow debuff id, so arrows that never appeared still have one.</summary>
+    public Dictionary<string, string> ArrowDirections { get; set; } = new();
+
+    /// <summary>Name of the status that makes players walk into the arrows (e.g. "Confused").</summary>
+    public string ConfusedStatus { get; set; } = "Confused";
+
+    public float[] Center { get; set; } = [100, 100];
+    public float HalfSize { get; set; } = 12;
+
+    /// <summary>How far a teleporter moves a player along its arrow (also the slot spacing).</summary>
+    public float Step { get; set; } = 6;
+
+    public bool Clockwise { get; set; } = true;
+
+    /// <summary>How far a teleporter may be from its slot.</summary>
+    public float Tolerance { get; set; } = 1.75f;
+
+    /// <summary>A player whose landing spot is within this distance of a teleporter is teleported again.</summary>
+    public float TriggerRadius { get; set; } = 2f;
+
+    /// <summary>Time per teleport in a chain.</summary>
+    public int HopMs { get; set; } = 750;
+
+    /// <summary>Most teleports one Confused player takes (0 = no limit).</summary>
+    public int MaxChain { get; set; } = 4;
+
+    public string? Conf { get; set; }
+}
+
+/// <summary>
+/// A mitigation plan (e.g. a community mit sheet) used as a reference: which party slot is expected to have which
+/// mitigation up at each damaging mechanic. Slots: MT, OT, healer job columns (WHM, AST, SCH, SGE), D1–D4 (= M1, M2,
+/// R1, R2) and Extras. Action names are the in-game names; "@partyMit" and "@extra" resolve by job.
+/// </summary>
+public sealed class MitigationPlanDef
+{
+    public string Source { get; set; } = string.Empty;
+    public string? Note { get; set; }
+    public List<MitMechanicDef> Mechanics { get; set; } = [];
+}
+
+public sealed class MitMechanicDef
+{
+    public string Id { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Planned time from pull start (seconds).</summary>
+    public float AtS { get; set; }
+
+    /// <summary>Damaging abilities of this mechanic (the hit time is the first one within ±WindowS of AtS).</summary>
+    public List<HexId> Hits { get; set; } = [];
+
+    /// <summary>Ability names, for hits whose ids are not known yet.</summary>
+    public List<string> HitNames { get; set; } = [];
+
+    public float WindowS { get; set; } = 5;
+    public List<MitPlanItem> Plan { get; set; } = [];
+}
+
+public sealed class MitPlanItem
+{
+    public string Slot { get; set; } = string.Empty;
+
+    /// <summary>Pressed for this mechanic.</summary>
+    public List<string> Use { get; set; } = [];
+
+    /// <summary>Still active from an earlier press (sheet "➔").</summary>
+    public List<string> Carry { get; set; } = [];
+
+    /// <summary>Only applies if the slot's player has one of these jobs.</summary>
+    public List<string>? Jobs { get; set; }
+
+    public string? Note { get; set; }
 }
 
 public sealed class EncounterMatch
@@ -170,11 +261,93 @@ public sealed class AbilityDef
     public TelegraphDef? Telegraph { get; set; }
     public bool? Damage { get; set; }
     public int? Soakers { get; set; }
+
+    /// <summary>
+    /// For stacks with <see cref="Soakers"/>: who is supposed to take it. "role" = the holder's role group (tanks and
+    /// healers, or DPS); a stack short of soakers is blamed on the group members who stayed out.
+    /// </summary>
+    public string? SoakGroup { get; set; }
+
+    /// <summary>For stacks/knockbacks: where the holder and the soakers are supposed to stand, per occurrence and group.</summary>
+    public List<StackPositionDef>? Positions { get; set; }
+
     public List<HexId>? ResolvesWith { get; set; }
     public bool ExcludesHolder { get; set; }
     public bool Knockback { get; set; }
     public string? Color { get; set; }
     public string? Conf { get; set; }
+
+    /// <summary>For failure abilities: what sets them off, so the analyzer can name who caused it.</summary>
+    public FailureCauseDef? FailureCause { get; set; }
+
+    /// <summary>
+    /// For soaks (category tower/soak): the earliest pull time (s) at which resolving it is intended, e.g. puddles that
+    /// must only be soaked after a knockback. A player touching it before then sets it off early.
+    /// </summary>
+    public float? NotBeforeS { get; set; }
+
+    /// <summary>Text for the intended timing, e.g. "after the 2nd confetti knockback".</summary>
+    public string? NotBeforeLabel { get; set; }
+}
+
+/// <summary>
+/// Fixed spots for one resolution of a stack/knockback, e.g. "holder on the top-left corner of marker 1, the other three
+/// on its bottom-right corner". A knockback that sends someone somewhere they shouldn't be is blamed on whoever was off
+/// their spot.
+/// </summary>
+public sealed class StackPositionDef
+{
+    /// <summary>Which resolution of the ability (1-based; resolutions less than 2s apart count as one). 0 = every one.</summary>
+    public int Occurrence { get; set; }
+
+    /// <summary>The holder's role group this applies to: "support" (tanks, healers), "dps" or "any".</summary>
+    public string Group { get; set; } = "any";
+
+    public SpotDef Holder { get; set; } = new();
+    public SpotDef Soakers { get; set; } = new();
+
+    /// <summary>How far from the spot still counts as in position.</summary>
+    public float Tolerance { get; set; } = 2.5f;
+
+    public string? Note { get; set; }
+}
+
+/// <summary>A spot relative to a waymark (A–D, 1–4), with a fallback position for when the waymark isn't logged.</summary>
+public sealed class SpotDef
+{
+    public string? Waymark { get; set; }
+    public float[]? Default { get; set; }
+    public float[] Offset { get; set; } = [0, 0];
+}
+
+/// <summary>
+/// A failure that happens when something comes into contact with a hazard, e.g. a knock-off AoE ("rock") touching a
+/// puddle detonates it. The analyzer finds the trigger (or player) closest to a hazard at the moment it resolved.
+/// </summary>
+public sealed class FailureCauseDef
+{
+    /// <summary>EObj bases of the hazard (e.g. the puddle).</summary>
+    public List<HexId> HazardEobjs { get; set; } = [];
+
+    /// <summary>AoE abilities that set the hazard off on contact (origin = the ability's target).</summary>
+    public List<HexId> TriggerActions { get; set; } = [];
+
+    /// <summary>Trigger-origin ↔ hazard-center distance that counts as contact (trigger radius + hazard radius).</summary>
+    public float ContactDistance { get; set; } = 10;
+
+    /// <summary>Players standing in the hazard also set it off (contact = hazard radius).</summary>
+    public bool PlayerContact { get; set; }
+
+    public float HazardRadius { get; set; } = 5;
+
+    /// <summary>How long before the failure to look for the trigger.</summary>
+    public float WindowS { get; set; } = 2;
+
+    /// <summary>Short noun for the trigger, e.g. "rock (Vitrophyre, yellow tether)".</summary>
+    public string? TriggerName { get; set; }
+
+    /// <summary>Short noun for the hazard, e.g. "Gravitas puddle".</summary>
+    public string? HazardName { get; set; }
 }
 
 public sealed class UnboundAbilityDef

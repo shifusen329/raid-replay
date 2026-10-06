@@ -20,6 +20,7 @@ A Dalamud plugin for FINAL FANTASY XIV that rebuilds every pull from your ACT ne
   - **Learned positions:** where that player usually stood at that moment in your pulls where the mechanic went fine. Learned in the background from your log history.
   - **Safe spot:** the nearest point outside every damaging AoE resolving at that moment.
   - **Soak position:** the tower or stack the player should have been in.
+  - **Assigned spot:** a fixed spot from the encounter pack, e.g. the spot a player's arrow belonged on, or the corner a knockback holder or its soakers stand on.
 
 ## Install (dev plugin)
 
@@ -29,10 +30,10 @@ A Dalamud plugin for FINAL FANTASY XIV that rebuilds every pull from your ACT ne
 
 **Commands:**
 - `/raidreplay` (or `/rreplay`): the replay window.
-- `/raidreplay report`: the last wipe report.
+- `/aar` (or `/raidreplay report`): the after-action report of the last wipe; again to close.
 - `/raidreplay config`: settings.
 
-ACT must write network logs. By default the plugin reads `%AppData%\Advanced Combat Tracker\FFXIVLogs`; you can change this in settings. Indexing is incremental and cached; the first pass over about 23 GB of logs takes under a minute.
+ACT must write network logs. By default the plugin reads `%USERPROFILE%\AppData\Roaming\Advanced Combat Tracker\FFXIVLogs`; you can change this in settings (environment variables are expanded). Indexing is incremental and cached; the first pass over about 23 GB of logs takes under a minute.
 
 ## Encounter packs
 
@@ -44,11 +45,18 @@ The engine works on any fight. It reads AoE shapes from the game's Action sheet 
 - per-ability AoE shape, origin, heading and category (danger, fake, tower, stack, spread, tankbuster, bait, …), including telegraphs drawn before the hit;
 - towers spawned by map effects;
 - head-marker and tether labels;
+- soak counts and who soaks (e.g. the holder's role group), and fixed holder/soaker spots relative to waymarks;
+- arrow-teleporter puzzles: the intended layout and how far a teleport carries and chains;
 - failure abilities.
 
 **Built-in pack: Dancing Mad (Ultimate)** ([`dmu.json`](RaidReplay.Core/Encounters/Packs/dmu.json)).
 - P1 and P2 are verified against real logs. Every shape was tuned with `rr validate-shapes`: most score 0.98–1.00 precision against actual hits.
 - P3–P5 are placeholders taken from the guides until logs reach those phases.
+- Tele-trouncing (Graven Image III) is checked arrow by arrow:
+  - every arrow is matched to the spot it belonged on (the plain clockwise square, or the corner variant some groups use);
+  - arrows dropped on top of each other, or used up before the confusion (including by an out-of-place confetti knockback), are blamed on whoever was out of place;
+  - each Confused player is followed through the arrows actually on the ground. This agrees with the game's own puzzle verdict on every logged pull;
+  - a Confused player's kill goes to whatever broke their chain.
 
 **Your own packs:** put them in the plugin's `encounters` folder (Settings → Encounters → Open folder). A pack whose `key` matches a built-in pack replaces it. "Export built-in packs" writes copies you can start from.
 
@@ -64,6 +72,10 @@ rr analyze <file> <n>                  # wipe report
 rr learn [file|all]                    # build position profiles from past pulls
 rr watch                               # live: analyze each pull as it ends
 rr validate-shapes <file>              # AoE shape precision/recall vs actual hits
+rr validate-contact <file> <trigger> <eobj> <failure>  # calibrate "X touching Y detonates" blame distances
+rr arrows <file> <n>                   # arrow puzzle: who dropped what where, chains, findings
+rr arrows-calibrate <file>             # arrow drops/stacking and simulated chains vs the game's verdict, all pulls
+rr stack-survey <file> <action> [--geo] # every resolution of a stack: soakers, damage, deaths (positions vs waymarks)
 rr phases <file> · rr index · rr stats <file> · rr sanitize <file> <n> <out> · rr map-png <mapId> <out.png>
 ```
 

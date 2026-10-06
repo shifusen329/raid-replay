@@ -55,7 +55,7 @@ internal static partial class CliApp
         if (r.Encounter != null && !o.Has("no-profile"))
             profile = PositionProfile.Load(o.CacheDir, r.Encounter.Key);
         var sw = Stopwatch.StartNew();
-        var report = WipeAnalyzer.Analyze(r, profile);
+        var report = WipeAnalyzer.Analyze(r, profile, GameDataFor(o));
         Console.Error.WriteLine($"analyzed in {sw.ElapsedMilliseconds} ms (profile: {report.LearnedPulls} pulls)");
         PrintReport(report, o.Has("all"));
         return 0;
@@ -82,9 +82,23 @@ internal static partial class CliApp
                 var exp = s.Expected is { } e
                               ? $" -> should be ({e.X:0.0},{e.Y:0.0}) {s.MissDistance:0.0}y {Direction(s.Pos, e)} [{s.ExpectedSource}{(s.ExpectedNote != null ? $": {s.ExpectedNote}" : "")}]"
                               : "";
-                Console.WriteLine($"            {(s.Involved ? "*" : " ")} {Core.GameData.Jobs.Abbrev(s.Player.Job),-4} {s.Player.Name,-22} " +
+                Console.WriteLine($"            {(s.Involved ? "*" : " ")} {s.Slot,-2} {Core.GameData.Jobs.Abbrev(s.Player.Job),-4} {s.Player.Name,-22} " +
                                   $"({s.Pos.X,6:0.0},{s.Pos.Y,6:0.0}) facing {Compass(s.Heading),-2} hp={(s.HpPct >= 0 ? $"{s.HpPct:0}%" : "?"),-4}" +
                                   $"{(s.Alive ? "" : " DEAD")}{exp}");
+            }
+        }
+
+        if (report.Mitigation.Count > 0)
+        {
+            Console.WriteLine();
+            Console.WriteLine("MITIGATION vs plan (reference; only available cooldowns count as missing):");
+            foreach (var c in report.Mitigation)
+            {
+                var bad = c.Entries.Where(e => e.Status != Core.Analysis.MitStatus.Active).ToList();
+                var ok = c.Entries.Count - bad.Count;
+                Console.WriteLine($"  {FormatDuration(c.T),8} {c.Mechanic.Name,-34} {ok}/{c.Entries.Count} active{(c.HitFound ? "" : " (hit not found)")}");
+                foreach (var e in bad)
+                    Console.WriteLine($"             {(e.Blamable ? "MISSING " : "        ")}{report.SlotOf(e.Player),-2} {Core.GameData.Jobs.Abbrev(e.Player.Job),-4} {e.Ability.Name,-22} {e.Status,-17} {e.Detail}");
             }
         }
     }

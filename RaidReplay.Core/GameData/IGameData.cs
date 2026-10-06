@@ -3,7 +3,7 @@ namespace RaidReplay.Core.GameData;
 /// <summary>Subset of the Lumina Action sheet relevant to AoE inference.</summary>
 public sealed record ActionInfo(
     uint Id, string Name, byte CastType, float EffectRange, float XAxisModifier, string? OmenPath, bool TargetArea,
-    int Cast100Ms, uint Icon, bool IsPlayerAction);
+    int Cast100Ms, uint Icon, bool IsPlayerAction, float RecastS = 0);
 
 public sealed record StatusInfo(uint Id, string Name, uint Icon, byte MaxStacks, byte Category);
 

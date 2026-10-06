@@ -244,6 +244,22 @@ public static class EncounterValidator
             CheckCategory(a.Category, $"abilities[{id}]", problems);
             if (a.Telegraph != null && a.Telegraph.Mode is not ("cast" or "lookback" or "none"))
                 problems.Add($"abilities[{id}]: unknown telegraph mode '{a.Telegraph.Mode}'");
+            if (a.SoakGroup != null && (a.SoakGroup != "role" || a.Soakers is null or <= 0))
+                problems.Add($"abilities[{id}]: soakGroup must be \"role\" and needs soakers");
+            foreach (var p in a.Positions ?? [])
+            {
+                if (p.Group is not ("support" or "dps" or "any"))
+                    problems.Add($"abilities[{id}].positions: group must be support, dps or any");
+                foreach (var s in new[] { p.Holder, p.Soakers })
+                {
+                    if (s.Waymark != null && Model.PullReplay.WaymarkSlot(s.Waymark) < 0)
+                        problems.Add($"abilities[{id}].positions: unknown waymark '{s.Waymark}' (A-D, 1-4)");
+                    if (s.Waymark == null && s.Default == null)
+                        problems.Add($"abilities[{id}].positions: a spot needs a waymark or a default");
+                    if (s.Offset.Length != 2 || s.Default is { Length: not 2 })
+                        problems.Add($"abilities[{id}].positions: offset/default must be [x, y]");
+                }
+            }
         }
 
         foreach (var t in def.Triggers)
@@ -266,6 +282,38 @@ public static class EncounterValidator
         {
             if (m.Phase != null && !phaseIds.Contains(m.Phase))
                 problems.Add($"mechanics[{m.Id}]: unknown phase '{m.Phase}'");
+        }
+
+        string[] sheetSlots = ["MT", "OT", "WHM", "AST", "SCH", "SGE", "D1", "D2", "D3", "D4", "Extras"];
+        foreach (var mm in def.Mitigation?.Mechanics ?? [])
+        {
+            if (mm.Hits.Count == 0 && mm.HitNames.Count == 0)
+                problems.Add($"mitigation[{mm.Id}]: needs hits or hitNames");
+            foreach (var item in mm.Plan)
+            {
+                if (!sheetSlots.Contains(item.Slot))
+                    problems.Add($"mitigation[{mm.Id}]: unknown slot '{item.Slot}'");
+                foreach (var token in item.Use.Concat(item.Carry))
+                {
+                    if (!Analysis.MitigationCatalog.IsKnown(token))
+                        problems.Add($"mitigation[{mm.Id}]: unknown ability '{token}'");
+                }
+            }
+        }
+
+        if (def.ArrowPuzzle is { } ap)
+        {
+            if (ap.TeleporterEobj.Value == 0 || ap.ArrowStatus.Length == 0)
+                problems.Add("arrowPuzzle: needs teleporterEobj and arrowStatus");
+            if (ap.Center.Length != 2 || ap.HalfSize <= 0 || ap.Step <= 0 || ap.TriggerRadius <= 0 || ap.HopMs <= 0 || ap.MaxChain < 0)
+                problems.Add("arrowPuzzle: center must be [x, y]; halfSize, step, triggerRadius and hopMs must be positive");
+            foreach (var (id, dir) in ap.ArrowDirections)
+            {
+                if (!HexId.TryParse(id, out _))
+                    problems.Add($"arrowPuzzle.arrowDirections: '{id}' is not a hex status id");
+                if (dir is not ("N" or "E" or "S" or "W"))
+                    problems.Add($"arrowPuzzle.arrowDirections[{id}]: '{dir}' must be N, E, S or W");
+            }
         }
 
         return problems;

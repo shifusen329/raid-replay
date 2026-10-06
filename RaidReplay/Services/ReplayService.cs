@@ -124,11 +124,11 @@ public sealed class ReplayService : IDisposable
     }
 
     private LogLibrary CreateLibrary() =>
-        new(config.LogsDirectory, Path.Combine(cacheDir, "index"), new EncounterObserverFactory(registry), registry.HashFor);
+        new(config.ResolvedLogsDirectory(), Path.Combine(cacheDir, "index"), new EncounterObserverFactory(registry), registry.HashFor);
 
     private LiveTailer CreateTailer()
     {
-        var t = new LiveTailer(config.LogsDirectory, Path.Combine(cacheDir, "index"), new EncounterObserverFactory(registry));
+        var t = new LiveTailer(config.ResolvedLogsDirectory(), Path.Combine(cacheDir, "index"), new EncounterObserverFactory(registry));
         t.PullEnded += p => ended.Enqueue((p, DateTime.UtcNow));
         return t;
     }
@@ -147,7 +147,7 @@ public sealed class ReplayService : IDisposable
             try
             {
                 var replay = PullLoader.Load(summary, gameData, registry, cts.Token, readToEof: summary.EndTruncated);
-                var report = WipeAnalyzer.Analyze(replay, ProfileFor(replay));
+                var report = WipeAnalyzer.Analyze(replay, ProfileFor(replay), gameData);
                 if (cts.IsCancellationRequested)
                     return;
                 Current = replay;
@@ -260,7 +260,7 @@ public sealed class ReplayService : IDisposable
             return;
         var replay = PullLoader.Load(pull, gameData, registry, ct, readToEof: true);
         var profile = ProfileFor(replay);
-        var report = WipeAnalyzer.Analyze(replay, profile);
+        var report = WipeAnalyzer.Analyze(replay, profile, gameData);
         LastLiveReport = report;
         if (config.AutoLoadLivePull)
         {

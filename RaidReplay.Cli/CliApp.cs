@@ -55,6 +55,10 @@ internal static partial class CliApp
                 "track" => Track(opts),
                 "analyze" => Analyze(opts),
                 "learn" => Learn(opts),
+                "arrows" => Arrows(opts),
+                "arrows-calibrate" => ArrowsCalibrate(opts),
+                "stack-survey" => StackSurvey(opts),
+                "validate-contact" => ValidateContact(opts),
                 "watch" => Watch(opts),
                 "simulate" => Simulate(opts),
 #if LUMINA

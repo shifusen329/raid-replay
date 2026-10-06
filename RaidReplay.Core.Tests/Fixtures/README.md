@@ -19,3 +19,7 @@ stay byte-exact (see `.gitattributes`).
 |---|---|---|
 | `dmu_p1_cleave.log` | DMU #13, 0:26 wipe | countdown → pull → wipe; Revolting Ruin III tankbuster cleaving six non-tanks |
 | `dmu_p1_puddles.log` | DMU #50, 1:33 wipe | Gravitas puddles dropped on top of each other → four Gravitational Explosions |
+| `dmu_p1_resets.log` | DMU #11, 0:53 wipe | Damage Down from a real Blizzard cone → deliberate jump-off reset → unsoaked tower → more Damage Down → reset cascade |
+| `dmu_p1_undersoak.log` | DMU #75, 2:08 wipe | Gravity III puddle soak at 2:01 taken by one player instead of four |
+| `dmu_p1_arrows.log` | DMU #39, 3:15 wipe | Tele-trouncing: an arrow 3.9y inside its spot breaks a Confused chain → ally killed (root cause); three W arrows dropped on top of each other, two of them out of place |
+| `dmu_p1_knockback_arrows.log` | DMU #61, 3:12 wipe | third confetti held 7.2y off its marker corner knocks two players into the arrows; Confused players who never reach an arrow or step in at a corner |

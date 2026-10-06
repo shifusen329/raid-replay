@@ -1,7 +1,8 @@
 using System;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
-using Dalamud.Interface.Utility;
+using Dalamud.Interface;
+using Dalamud.Interface.Components;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
 using RaidReplay.Core.Analysis;
@@ -10,27 +11,24 @@ using RaidReplay.Services;
 
 namespace RaidReplay.Windows;
 
-/// <summary>Compact between-pulls report: verdict, incidents and a snapshot map of the selected incident.</summary>
+/// <summary>
+/// The between-pulls wipe card: opens by itself when a pull ends and is meant to be read in a few seconds —
+/// verdict, root cause with culprits and a snapshot mini-map, contributing incidents, mitigation, actions.
+/// </summary>
 public sealed class WipeReportWindow : Window, IDisposable
 {
     private readonly Plugin plugin;
-    private readonly ReplayService service;
     private readonly ReportView reportView;
-    private readonly ReplayRenderer renderer;
-    private readonly ArenaView view = new();
     private WipeReport? report;
-    private bool fit = true;
 
     public WipeReportWindow(Plugin plugin, ReplayService service, Configuration config)
         : base("Wipe Report###RaidReplayWipeReport", ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse)
     {
         this.plugin = plugin;
-        this.service = service;
-        reportView = new ReportView(config);
-        renderer = new ReplayRenderer(config, service.GameData);
-        Size = new Vector2(980, 620);
+        reportView = new ReportView(config, service.GameData);
+        Size = new Vector2(620, 760);
         SizeCondition = ImGuiCond.FirstUseEver;
-        SizeConstraints = new WindowSizeConstraints { MinimumSize = new Vector2(700, 420), MaximumSize = new Vector2(float.MaxValue) };
+        SizeConstraints = new WindowSizeConstraints { MinimumSize = new Vector2(420, 360), MaximumSize = new Vector2(float.MaxValue) };
     }
 
     public void Dispose() { }
@@ -39,54 +37,49 @@ public sealed class WipeReportWindow : Window, IDisposable
     {
         report = r;
         reportView.Selected = r.RootCause;
-        fit = true;
+        WindowName = $"Wipe Report · pull #{r.Pull.Summary.Ordinal}###RaidReplayWipeReport";
         IsOpen = true;
         BringToFront();
     }
+
+    public override void PreDraw() => Theme.PushWindow();
+
+    public override void PostDraw() => Theme.PopWindow();
 
     public override void Draw()
     {
         if (report == null)
         {
-            ImGui.TextDisabled("No wipe analyzed yet. Reports appear here automatically when a pull ends.");
+            Theme.Wrapped("No wipe analyzed yet. The report opens here by itself when a pull ends.", Theme.TextDim);
             return;
         }
 
-        var scale = ImGuiHelpers.GlobalScale;
-        var avail = ImGui.GetContentRegionAvail();
-        var mapSize = Math.Min(avail.Y, avail.X * 0.45f);
-        using (var left = ImRaii.Child("##reportleft", new Vector2(avail.X - mapSize - ImGui.GetStyle().ItemSpacing.X, avail.Y), false))
+        var footer = ImGui.GetFrameHeight() + (ImGui.GetStyle().ItemSpacing.Y * 2) + 1;
+        using (var child = ImRaii.Child("##wipecard", new Vector2(0, -footer), false, ImGuiWindowFlags.AlwaysVerticalScrollbar))
         {
-            if (left.Success)
-            {
-                if (ImGui.Button("Open in replay"))
-                    plugin.OpenReplayAt(report, reportView.Selected);
-                ImGui.SameLine();
-                ImGui.TextDisabled("Click an incident to see where everyone was.");
-                reportView.Draw(report);
-            }
+            if (child.Success)
+                reportView.Draw(report, true);
         }
 
+        Theme.Rule();
+        using (ImRaii.PushColor(ImGuiCol.Button, Theme.With(Theme.Accent, 0.32f))
+                     .Push(ImGuiCol.ButtonHovered, Theme.With(Theme.Accent, 0.48f))
+                     .Push(ImGuiCol.ButtonActive, Theme.With(Theme.Accent, 0.62f)))
+        {
+            if (ImGuiComponents.IconButtonWithText(FontAwesomeIcon.Play, "Open replay at this moment"))
+                plugin.OpenReplayAt(report, reportView.Selected);
+        }
+
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip("Load this pull in the replay window, seek to the selected incident and overlay where everyone should have been.");
         ImGui.SameLine();
-        using var right = ImRaii.Child("##reportmap", new Vector2(mapSize, avail.Y), true,
-                                       ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse);
-        if (!right.Success)
-            return;
-        var r = report.Pull;
-        var inc = reportView.Selected;
-        view.Begin("##snapcanvas", ImGui.GetContentRegionAvail() - new Vector2(0, ImGui.GetTextLineHeightWithSpacing()));
-        if (fit)
-        {
-            var arena = r.Encounter?.Def.Arena;
-            view.Fit(arena != null ? new Vector2(arena.Center[0], arena.Center[1]) : new Vector2(100, 100),
-                     arena != null ? (arena.ViewRadius > 0 ? arena.ViewRadius : arena.Radius * 1.25f) : 25);
-            fit = false;
-        }
-
-        renderer.Highlight = inc;
-        renderer.Draw(r, view, inc?.T ?? r.EndMs);
-        ImGui.TextDisabled(inc != null ? $"Snapshot at {Timeline.Fmt(inc.T)} — ghosts show where players should have been"
-                                       : "Snapshot at wipe");
-        _ = scale;
+        if (ImGuiComponents.IconButtonWithText(reportView.RecentlyCopied ? FontAwesomeIcon.Check : FontAwesomeIcon.Clipboard,
+                                               reportView.RecentlyCopied ? "Copied" : "Copy summary"))
+            reportView.CopySummary(report);
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip("Copy a plain-text summary (verdict, root cause, contributing incidents) for Discord or party chat.");
+        ImGui.SameLine();
+        ImGui.AlignTextToFramePadding();
+        Theme.Dim("Click an incident to show it on the map.");
     }
 }

@@ -12,6 +12,11 @@ public enum IncidentKind : byte
     TowerUnderSoaked,
     MissedStack,
     SpreadOverlap,
+    MissingMitigation,
+
+    /// <summary>An arrow-teleporter puzzle mistake (misplaced, stacked or early-used arrow, broken chain, unused arrows).</summary>
+    ArrowPuzzle,
+
     Enrage,
 }
 
@@ -27,11 +32,15 @@ public enum ExpectedSource : byte
 
     /// <summary>Where this player usually stood here in pulls where the mechanic went fine.</summary>
     Learned,
+
+    /// <summary>A fixed spot the player was assigned (e.g. their arrow spot, the knockback holder corner).</summary>
+    Assigned,
 }
 
 public sealed class PlayerSnapshot
 {
     public required Actor Player { get; init; }
+    public string Slot { get; init; } = string.Empty;
     public Vector2 Pos { get; init; }
     public float Heading { get; init; }
     public float HpPct { get; init; }
@@ -48,15 +57,36 @@ public sealed class Incident
 {
     public IncidentKind Kind { get; init; }
     public int T { get; init; }
-    public required string Title { get; init; }
+    public required string Title { get; set; }
     public string Detail { get; set; } = string.Empty;
     public string? Mechanic { get; set; }
     public List<Actor> Players { get; } = [];
     public List<AoeInstance> Aoes { get; } = [];
     public DeathEvent? Death { get; init; }
-    public int Severity { get; init; }
+
+    /// <summary>The mitigation-plan check of the mechanic this incident happened at, if any.</summary>
+    public MitCheck? Mitigation { get; set; }
+
+    /// <summary>Overrides the verdict when this incident is the root cause (e.g. "Missing mitigation").</summary>
+    public string? VerdictHint { get; set; }
+
+    /// <summary>A deliberate death, e.g. jumping off to swap a Damage Down for Weakness after a raise.</summary>
+    public bool Intentional { get; set; }
+
+    /// <summary>For Damage Down resets: when the Damage Down was applied (-1 if not a reset).</summary>
+    public int DamageDownAt { get; set; } = -1;
+
+    /// <summary>For deaths: total damage taken in the final second (simultaneous hits) and HP before it.</summary>
+    public int BurstDamage { get; set; }
+
+    public int HpBeforeBurst { get; set; }
+
+    public int Severity { get; set; }
     public bool IsRootCause { get; set; }
     public List<PlayerSnapshot> Snapshot { get; } = [];
+
+    /// <summary>Incident-specific "should have been" positions that take precedence over learned/safe-spot ones.</summary>
+    public Dictionary<Actor, (Vector2 Pos, ExpectedSource Source, string Note)> Expected { get; } = new();
 }
 
 public sealed class WipeReport
@@ -70,6 +100,17 @@ public sealed class WipeReport
     public Incident? RootCause { get; set; }
     public List<string> Notes { get; } = [];
     public int LearnedPulls { get; set; }
+
+    /// <summary>Party slots (MT, OT, H1, H2, M1, M2, R1, R2).</summary>
+    public Dictionary<Actor, string> Slots { get; set; } = new();
+
+    /// <summary>Mitigation plan checks up to the end of the pull (empty if the encounter has no plan).</summary>
+    public List<MitCheck> Mitigation { get; set; } = [];
+
+    /// <summary>The arrow-teleporter puzzle of this pull, if the encounter has one and it was reached.</summary>
+    public ArrowSquareResult? Arrows { get; set; }
+
+    public string SlotOf(Actor a) => Slots.TryGetValue(a, out var s) ? s : string.Empty;
 
     /// <summary>One-line summary suitable for chat.</summary>
     public string ChatLine { get; set; } = string.Empty;
