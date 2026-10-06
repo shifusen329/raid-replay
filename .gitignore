@@ -1,4 +1,35 @@
+# .NET build output
 .vs/
 obj/
 bin/
 *.user
+TestResults/
+*.dll
+*.exe
+
+# Editors / OS
+.vscode/
+.idea/
+*.swp
+*.DS_Store
+Thumbs.db
+
+# Python (scratch analysis only)
+__pycache__/
+*.py[oc]
+.venv/
+venv/
+
+# Secrets & local config
+.env
+*.pem
+*.key
+config.local.*
+
+# Logs / caches (sanitized test fixtures are allowed)
+*.log
+!RaidReplay.Core.Tests/Fixtures/*.log
+.cache/
+*.sqlite3
+*.bak
+*.tmp

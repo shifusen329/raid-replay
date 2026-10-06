@@ -1,78 +1,84 @@
-> ⚠️ **Don't click Fork!**
-> 
-> This is a GitHub Template repo. If you want to use this for a plugin, [use this template][new-repo] to make a new repo!
->
-> ![image](https://github.com/goatcorp/SamplePlugin/assets/16760685/d9732094-e1ed-4769-a70b-58ed2b92580c)
+# Raid Replay
 
-# SamplePlugin
+A Dalamud plugin for FINAL FANTASY XIV that rebuilds every pull from your ACT network logs. You can scrub through each pull on a map, and every wipe is explained the moment it happens.
 
-[![Use This Template badge](https://img.shields.io/badge/Use%20This%20Template-0?logo=github&labelColor=grey)][new-repo]
+- **Replay any pull.** Each pull is drawn on the arena map with:
+  - waymarks and target signs;
+  - every player's position, facing, HP and movement trail;
+  - boss casts and AoE telegraphs (circles, cones, lines, donuts, half-room cleaves);
+  - towers, puddles, tethers and head markers;
+  - deaths, and a death recap for each one.
 
+  Controls: play/pause, 0.25–8× speed, step, scrub, zoom and pan. A timeline shows phases, mechanics, boss casts, deaths and the incidents from the wipe report.
+- **Live wipe analysis.** The plugin follows the log ACT is currently writing. When a pull ends, about two seconds later it:
+  - prints a one-line summary to chat;
+  - opens a **Wipe Report** with:
+    - the verdict (DPS check, mechanic failure, avoidable damage, stack/spread error, death, fell off);
+    - the root cause and the incidents that led to it;
+    - for each incident, where every raider was, which way they faced, their HP, and **where they should have been**.
+- **"Should have been"** comes from three sources:
+  - **Learned positions:** where that player usually stood at that moment in your pulls where the mechanic went fine. Learned in the background from your log history.
+  - **Safe spot:** the nearest point outside every damaging AoE resolving at that moment.
+  - **Soak position:** the tower or stack the player should have been in.
 
-Simple example plugin for Dalamud.
+## Install (dev plugin)
 
-This is not designed to be the simplest possible example, but it is also not designed to cover everything you might want to do. For more detailed questions, come ask in [the Discord](https://discord.gg/holdshift).
+1. Build: `dotnet build RaidReplay.slnx -c Release`. This needs the .NET 10 SDK and XIVLauncher's Dalamud dev install in `%AppData%\XIVLauncher\addon\Hooks\dev`.
+2. In game, open `/xlsettings` → Experimental → Dev Plugin Locations, and add `…\RaidReplay\bin\x64\Release\RaidReplay.dll`.
+3. Open `/xlplugins` → Dev Tools and enable **Raid Replay**.
 
-## Main Points
+**Commands:**
+- `/raidreplay` (or `/rreplay`): the replay window.
+- `/raidreplay report`: the last wipe report.
+- `/raidreplay config`: settings.
 
-* Simple functional plugin
-  * Slash command
-  * Main UI
-  * Settings UI
-  * Image loading
-  * Plugin json
-* Simple, slightly-improved plugin configuration handling
-* Project organization
-  * Copies all necessary plugin files to the output directory
-    * Does not copy dependencies that are provided by dalamud
-    * Output directory can be zipped directly and have exactly what is required
-  * Hides data files from visual studio to reduce clutter
-    * Also allows having data files in different paths than VS would usually allow if done in the IDE directly
+ACT must write network logs. By default the plugin reads `%AppData%\Advanced Combat Tracker\FFXIVLogs`; you can change this in settings. Indexing is incremental and cached; the first pass over about 23 GB of logs takes under a minute.
 
+## Encounter packs
 
-The intention is less that any of this is used directly in other projects, and more to show how similar things can be done.
+The engine works on any fight. It reads AoE shapes from the game's Action sheet and infers bosses, helpers, phases and raidwides from what happened in the log. For fights you progress, an **encounter pack** (JSON) makes the replay and analysis precise. A pack can describe:
+- phases and sub-phases (triggered by casts, director lines, spawns, map effects, …);
+- mechanic labels;
+- actor roles (boss, helper, clone, and so on, keyed by BNpcBase);
+- event objects such as puddles and teleporters;
+- per-ability AoE shape, origin, heading and category (danger, fake, tower, stack, spread, tankbuster, bait, …), including telegraphs drawn before the hit;
+- towers spawned by map effects;
+- head-marker and tether labels;
+- failure abilities.
 
-## How To Use
+**Built-in pack: Dancing Mad (Ultimate)** ([`dmu.json`](RaidReplay.Core/Encounters/Packs/dmu.json)).
+- P1 and P2 are verified against real logs. Every shape was tuned with `rr validate-shapes`: most score 0.98–1.00 precision against actual hits.
+- P3–P5 are placeholders taken from the guides until logs reach those phases.
 
-### Getting Started
+**Your own packs:** put them in the plugin's `encounters` folder (Settings → Encounters → Open folder). A pack whose `key` matches a built-in pack replaces it. "Export built-in packs" writes copies you can start from.
 
-To begin, [clone this template repository][new-repo] to your own GitHub account. This will automatically bring in everything you need to get a jumpstart on development. You do not need to fork this repository unless you intend to contribute modifications to it.
+## Command line (`RaidReplay.Cli`, `rr.exe`)
 
-Be sure to also check out the [Dalamud Developer Docs][dalamud-docs] for helpful information about building your own plugin. The Developer Docs includes helpful information about all sorts of things, including [how to submit][submit] your newly-created plugin to the official repository. Assuming you use this template repository, the provided project build configuration and license are already chosen to make everything a breeze.
+The parser, indexer, loader and analyzer live in `RaidReplay.Core`, which does not depend on Dalamud. The CLI runs them outside the game. It reads `LOGS_PATH` from the environment or from `.env`. If the game is installed, it reads action data from the game files with Lumina, using the Lumina copy in your Dalamud dev install.
 
-[new-repo]: https://github.com/new?template_name=SamplePlugin&template_owner=goatcorp
-[dalamud-docs]: https://dalamud.dev
-[submit]: https://dalamud.dev/plugin-publishing/submission
+```
+rr pulls latest                        # list pulls of the newest log
+rr dump-pull <file> <n> [--events]     # casts, deaths, phases, markers of pull n
+rr dump-frame <file> <n> --at 42.5     # everyone's position / active AoEs at a time
+rr analyze <file> <n>                  # wipe report
+rr learn [file|all]                    # build position profiles from past pulls
+rr watch                               # live: analyze each pull as it ends
+rr validate-shapes <file>              # AoE shape precision/recall vs actual hits
+rr phases <file> · rr index · rr stats <file> · rr sanitize <file> <n> <out> · rr map-png <mapId> <out.png>
+```
 
-### Prerequisites
+## Layout
 
-SamplePlugin assumes all the following prerequisites are met:
+| Project | |
+|---|---|
+| `RaidReplay.Core` | Log parsing (span-based, ~800 MB/s), pull detection, cached and resumable per-file index, live tailer, pull reconstruction (actor tracks, casts/actions/hits, statuses, deaths), AoE inference, encounter packs, wipe analyzer, position profiles |
+| `RaidReplay` | Dalamud plugin: background service, ImGui replay canvas, timeline, report windows, Lumina game data |
+| `RaidReplay.Cli` | `rr` tool for inspecting and validating outside the game |
+| `RaidReplay.Core.Tests` | xUnit tests on sanitized log fixtures. Integration tests run against your real logs when `LOGS_PATH` is set |
 
-* XIVLauncher, FINAL FANTASY XIV, and Dalamud have all been installed and the game has been run with Dalamud at least once.
-* XIVLauncher is installed to its default directories and configurations.
-  * If a custom path is required for Dalamud's dev directory, it must be set with the `DALAMUD_HOME` environment variable.
-* A .NET Core 8 SDK has been installed and configured, or is otherwise available. (In most cases, the IDE will take care of this.)
+## Known limitations
 
-### Building
-
-1. Open up `SamplePlugin.sln` in your C# editor of choice (likely [Visual Studio](https://visualstudio.microsoft.com) or [JetBrains Rider](https://www.jetbrains.com/rider/)).
-2. Build the solution. By default, this will build a `Debug` build, but you can switch to `Release` in your IDE.
-3. The resulting plugin can be found at `SamplePlugin/bin/x64/Debug/SamplePlugin.dll` (or `Release` if appropriate.)
-
-### Activating in-game
-
-1. Launch the game and use `/xlsettings` in chat or `xlsettings` in the Dalamud Console to open up the Dalamud settings.
-    * In here, go to `Experimental`, and add the full path to the `SamplePlugin.dll` to the list of Dev Plugin Locations.
-2. Next, use `/xlplugins` (chat) or `xlplugins` (console) to open up the Plugin Installer.
-    * In here, go to `Dev Tools > Installed Dev Plugins`, and the `SamplePlugin` should be visible. Enable it.
-3. You should now be able to use `/pmycommand` (chat) or `pmycommand` (console)!
-
-Note that you only need to add it to the Dev Plugin Locations once (Step 1); it is preserved afterwards. You can disable, enable, or load your plugin on startup through the Plugin Installer.
-
-### Reconfiguring for your own uses
-
-Replace all references to `SamplePlugin` in all the files and filenames with your desired name, then start building the plugin of your dreams. You'll figure it out 😁
-
-Dalamud will load the JSON file (by default, `SamplePlugin/SamplePlugin.json`) next to your DLL and use it for metadata, including the description for your plugin in the Plugin Installer. Make sure to update this with information relevant to _your_ plugin!
-
-All participation in this repository is governed by our [Code of Conduct](https://dalamud.dev/code-of-conduct). If you used AI tooling at any point, review the [AI Usage Policy](https://dalamud.dev/plugin-publishing/ai-policy) and disclose your level of AI use. Entirely AI-generated submissions will be rejected, and undisclosed AI use may result in a ban.
+- **Position sampling:** ACT logs positions about 1–3 times per second per player, so fast movement such as knockbacks and teleports is interpolated between samples.
+- **Waymarks** placed before ACT started logging are not visible.
+- **Tether end times** are inferred.
+- **Without a pack,** classifying abilities as "avoidable" is heuristic.

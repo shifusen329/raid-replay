@@ -1,16 +1,15 @@
-name: Sample PR Builder for SamplePlugin
+name: Build and test Raid Replay
 
 on:
   pull_request:
+    branches: [ master ]
+  push:
     branches: [ master ]
 
 jobs:
 
   build:
     runs-on: windows-2022
-
-    env:
-      Solution_Name: SamplePlugin
 
     steps:
     - name: Checkout
@@ -27,13 +26,16 @@ jobs:
         Expand-Archive -Force latest.zip "$env:AppData\XIVLauncher\addon\Hooks\dev"
 
     - name: Build with dotnet
-      run: dotnet build --configuration Release
+      run: dotnet build RaidReplay.slnx --configuration Release
+
+    - name: Test
+      # Integration tests that need the local ACT log folder (LOGS_PATH) are skipped automatically.
+      run: dotnet test RaidReplay.Core.Tests --configuration Release --no-build
 
     - name: Store artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: SamplePlugin
-        path: .\SamplePlugin\bin\x64\Release\SamplePlugin\*
+        name: RaidReplay
+        path: .\RaidReplay\bin\x64\Release\RaidReplay\*
         if-no-files-found: error
-        retention-days: 1
-
+        retention-days: 7

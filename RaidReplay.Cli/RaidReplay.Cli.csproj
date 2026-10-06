@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>14.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>rr</AssemblyName>
+    <RootNamespace>RaidReplay.Cli</RootNamespace>
+    <TieredPGO>true</TieredPGO>
+    <DalamudLibPath Condition="'$(DALAMUD_HOME)' != ''">$(DALAMUD_HOME)\</DalamudLibPath>
+    <DalamudLibPath Condition="'$(DalamudLibPath)' == ''">$(AppData)\XIVLauncher\addon\Hooks\dev\</DalamudLibPath>
+    <!-- Lumina (from the local Dalamud install) lets the CLI read game data for AoE shapes; optional. -->
+    <UseLumina Condition="'$(UseLumina)' == '' And Exists('$(DalamudLibPath)Lumina.Excel.dll')">true</UseLumina>
+    <DefineConstants Condition="'$(UseLumina)' == 'true'">$(DefineConstants);LUMINA</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\RaidReplay.Core\RaidReplay.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(UseLumina)' == 'true'">
+    <Reference Include="Lumina"><HintPath>$(DalamudLibPath)Lumina.dll</HintPath></Reference>
+    <Reference Include="Lumina.Excel"><HintPath>$(DalamudLibPath)Lumina.Excel.dll</HintPath></Reference>
+    <Compile Include="..\RaidReplay\GameData\LuminaGameData.cs" Link="GameData\LuminaGameData.cs" />
+  </ItemGroup>
+
+</Project>

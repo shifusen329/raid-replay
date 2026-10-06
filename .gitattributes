@@ -1,0 +1,2 @@
+# Test fixtures are byte-exact copies of ACT network log excerpts (CRLF); never normalize them.
+RaidReplay.Core.Tests/Fixtures/** -text

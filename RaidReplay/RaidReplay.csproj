@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Dalamud.NET.Sdk/15.0.0">
+  <PropertyGroup>
+    <Version>0.1.0.0</Version>
+    <!-- Manifest fields (see https://github.com/goatcorp/DalamudPackager/blob/827d88dc/DalamudPackager/DalamudPackager.cs#L420) -->
+    <Author>shifusen329</Author>
+    <Name>Raid Replay</Name>
+    <Punchline>Replay and analyze raid pulls from your ACT network logs.</Punchline>
+    <Description>Reconstructs every pull from ACT network logs: arena map, waymarks, player positions and facing, boss casts and AoE telegraphs, towers, tethers, head markers and deaths, with a scrubbable timeline. Watches the live log and explains each wipe right after it happens: root cause, who was where, and where they should have been.</Description>
+    <RepoUrl>https://github.com/shifusen329/raid-replay</RepoUrl>
+    <Tags>raid;replay;act;analysis;logs</Tags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\RaidReplay.Core\RaidReplay.Core.csproj" />
+  </ItemGroup>
+</Project>

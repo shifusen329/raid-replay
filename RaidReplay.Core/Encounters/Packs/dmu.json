@@ -1,0 +1,213 @@
+{
+  // Dancing Mad (Ultimate). conf: v = verified in ACT logs (2026-09-18..10-06, P1+P2), i = inferred, d = from guides only.
+  "schema": 1,
+  "key": "dmu",
+  "name": "Dancing Mad (Ultimate)",
+  "notes": "Logs only cover P1 and P2 (to tower set 8). P3-P5 entries are placeholders from the guides.",
+  "match": { "territoryIds": ["0x553"], "mapIds": [79] },
+
+  "arena": {
+    "center": [100, 100], "shape": "circle", "radius": 20, "viewRadius": 24, "fallRadius": 21, "useMapTexture": true,
+    "points": {
+      "statueWaveCannon": [100, 65], "statuePurple": [102.5, 27], "statueYellow": [126, 41.5],
+      "statueIndolent": [107, 43], "statueAveMaria": [95, 25]
+    },
+    "pointSets": {
+      "towerSlot": {
+        "01": [100, 92], "02": [105.66, 94.34], "03": [108, 100], "04": [105.66, 105.66],
+        "05": [100, 108], "06": [94.34, 105.66], "07": [92, 100], "08": [94.34, 94.34]
+      }
+    },
+    "conf": "v"
+  },
+
+  "actors": [
+    { "bnpcBase": 19504, "role": "boss", "label": "Kefka", "hitbox": 6.0, "conf": "v" },
+    { "bnpcBase": 19506, "role": "boss", "label": "Forsaken Kefka", "hitbox": 6.02, "conf": "v" },
+    { "bnpcBase": 19513, "role": "clone", "label": "Kefka (clone)", "hitbox": 3.5, "conf": "v" },
+    { "bnpcBase": 19505, "role": "emitter", "label": "Graven Image", "render": false, "conf": "v" },
+    { "bnpcBase": 9020, "role": "helper", "render": false, "conf": "v" }
+  ],
+
+  "eobjs": [
+    { "base": "0x1EC022", "label": "Gravitas puddle", "draw": { "type": "circle", "radius": 5 }, "category": "hazard", "color": "#a050ff", "conf": "v pos, i radius" },
+    { "base": "0x1EC023", "label": "Teleporter", "draw": { "type": "arrow", "radius": 2.5 }, "category": "info", "color": "#40c0ff", "conf": "v pos/heading" },
+    { "base": "0x1EBFBB", "label": "Statue (Wave Cannon)", "render": false, "conf": "v" },
+    { "base": "0x1EBFBC", "label": "Statue purple side", "render": false, "conf": "v" },
+    { "base": "0x1EBFBD", "label": "Statue yellow side", "render": false, "conf": "v" },
+    { "base": "0x1EBFBE", "label": "Statue (Indolent Will)", "render": false, "conf": "v" },
+    { "base": "0x1EBFBF", "label": "Statue (Ave Maria)", "render": false, "conf": "v" }
+  ],
+
+  "phases": [
+    {
+      "id": "p1", "name": "P1 Kefka", "start": { "pullStart": true }, "conf": "v",
+      "segments": [
+        { "id": "p1_gi1", "name": "Graven Image I", "start": { "director": { "command": "0x80000001", "p1": ["0x4F41"] } } },
+        { "id": "p1_gi2", "name": "Graven Image II", "start": { "director": { "command": "0x80000001", "p1": ["0x4F42"] } } },
+        { "id": "p1_gi3", "name": "Graven Image III", "start": { "director": { "command": "0x80000001", "p1": ["0x4F43"] } } },
+        { "id": "p1_enrage", "name": "Enrage", "start": { "castStart": { "ids": ["0xBABB"] } } }
+      ]
+    },
+    {
+      "id": "p2", "name": "P2 Forsaken Kefka", "expectedS": 200, "conf": "v",
+      "start": { "anyOf": [
+        { "spawn": { "bnpcBase": [19506] } },
+        { "director": { "command": "0x80000001", "p1": ["0x4F44"] } },
+        { "director": { "command": "0x80000027", "p1": ["0x05", "0x0D"] } }
+      ] },
+      "segments": [
+        { "id": "p2_ue", "name": "Ultimate Embrace", "start": { "castStart": { "ids": ["0xC24C"] } } },
+        { "id": "p2_forsaken", "name": "Forsaken towers", "start": { "castStart": { "ids": ["0xBABC"] } } }
+      ]
+    },
+    { "id": "p3", "name": "P3 Chaos & Exdeath", "expectedS": 382, "conf": "d",
+      "start": { "anyOf": [ { "spawn": { "names": ["Chaos", "Exdeath"] } } ] } },
+    { "id": "p4", "name": "P4 Kefka Says", "expectedS": 734, "conf": "d",
+      "start": { "anyOf": [ { "castStart": { "names": ["Kefka Says"] } } ] } },
+    { "id": "p5", "name": "P5 Kefka Reimagined", "expectedS": 862, "conf": "d",
+      "start": { "anyOf": [ { "castStart": { "names": ["Ultima Repeater", "Celestriad"] } } ] } }
+  ],
+
+  "mechanics": [
+    { "id": "p1_revolting_ruin_iii", "label": "Revolting Ruin III", "phase": "p1", "trigger": { "castStart": { "ids": ["0xC403"] } }, "durationS": 8 },
+    { "id": "p1_graven_image_1", "label": "Graven Image I", "phase": "p1", "trigger": { "castStart": { "ids": ["0xBCF2"] }, "occurrence": 1 } },
+    { "id": "p1_graven_image_2", "label": "Graven Image II", "phase": "p1", "trigger": { "castStart": { "ids": ["0xBCF2"] }, "occurrence": 2 } },
+    { "id": "p1_graven_image_3", "label": "Graven Image III", "phase": "p1", "trigger": { "castStart": { "ids": ["0xBCF2"] }, "occurrence": 3 } },
+    { "id": "p1_mystery_magic", "label": "Mystery Magic", "phase": "p1", "trigger": { "castStart": { "ids": ["0xBA94", "0xBA95"] } }, "durationS": 5 },
+    { "id": "p1_beams_and_towers", "label": "Wave Cannon + towers", "phase": "p1", "trigger": { "ability": { "ids": ["0xBAA8"] }, "occurrence": 1 } },
+    { "id": "p1_double_trouble_trap", "label": "Double-trouble Trap", "phase": "p1", "trigger": { "castStart": { "ids": ["0xBAA6"] } } },
+    { "id": "p1_light_of_judgment", "label": "Light of Judgment", "phase": "p1", "trigger": { "castStart": { "ids": ["0xC622"] } }, "durationS": 5 },
+    { "id": "p1_gravitas", "label": "Gravitas (puddles)", "phase": "p1", "trigger": { "ability": { "ids": ["0xBAAC"] } } },
+    { "id": "p1_tele_trouncing", "label": "Tele-trouncing", "phase": "p1", "trigger": { "castStart": { "ids": ["0xBAB9"] } } },
+    { "id": "p1_gaze", "label": "Gaze", "phase": "p1", "trigger": { "castStart": { "ids": ["0xC554"] } } },
+    { "id": "p1_enrage", "label": "Enrage (DPS check failed)", "phase": "p1", "trigger": { "castStart": { "ids": ["0xBABB"] } } },
+    { "id": "p2_ultimate_embrace", "label": "Ultimate Embrace", "phase": "p2", "trigger": { "castStart": { "ids": ["0xC24C"] } } },
+    { "id": "p2_forsaken", "label": "Forsaken", "phase": "p2", "trigger": { "castStart": { "ids": ["0xBABC"] } } },
+    { "id": "p2_futures_end", "label": "Future's End", "phase": "p2", "trigger": { "castStart": { "ids": ["0xBAD2"] } } },
+    { "id": "p2_pasts_end", "label": "Past's End", "phase": "p2", "trigger": { "castStart": { "ids": ["0xBAD3"] } } }
+  ],
+
+  "abilities": {
+    "0xC252": { "name": "attack", "category": "ignore", "conf": "v" },
+    "0xC3FD": { "name": "(jump to center)", "category": "ignore", "conf": "v" },
+    "0xBCF2": { "name": "Graven Image", "category": "info", "shape": { "type": "none" }, "conf": "v" },
+    "0xBA94": { "name": "Mystery Magic", "category": "info", "shape": { "type": "none" }, "conf": "v" },
+    "0xBA95": { "name": "Blizzard III Blowout (container)", "category": "info", "shape": { "type": "none" }, "conf": "v" },
+
+    "0xC403": { "label": "Revolting Ruin III", "category": "tankbuster", "shape": { "type": "cone", "radius": 100, "angleDeg": 90 }, "conf": "v id, i angle" },
+    "0xC4E1": { "label": "Revolting Ruin III (2nd)", "category": "tankbuster", "shape": { "type": "cone", "radius": 100, "angleDeg": 90 }, "telegraph": { "mode": "lookback", "s": 3 }, "conf": "v id, i angle" },
+
+    "0xBA98": { "label": "Blizzard III (real)", "category": "danger", "shape": { "type": "cone", "radius": 40, "angleDeg": 90, "origin": "castLoc" }, "conf": "v dmg, i angle" },
+    "0xBA9B": { "label": "Blizzard III (fake)", "category": "fake", "shape": { "type": "cone", "radius": 40, "angleDeg": 90, "origin": "castLoc" }, "damage": false, "conf": "v" },
+    "0xBA9E": { "label": "Blizzard III (hidden, real)", "category": "hiddenDanger", "shape": { "type": "cone", "radius": 40, "angleDeg": 90, "origin": "castLoc" }, "conf": "v dmg" },
+    "0xBA9F": { "label": "Thunder III line (real)", "category": "danger", "shape": { "type": "rect", "length": 40, "backLength": 40, "width": 10, "origin": "castLoc" }, "conf": "v (validate-shapes)" },
+    "0xBAA0": { "label": "Thunder III line (fake)", "category": "fake", "shape": { "type": "rect", "length": 40, "backLength": 40, "width": 10, "origin": "castLoc" }, "damage": false, "conf": "v" },
+    "0xBAA1": { "label": "Thunder III line (hidden, real)", "category": "hiddenDanger", "shape": { "type": "rect", "length": 40, "backLength": 40, "width": 10, "origin": "castLoc" }, "conf": "v" },
+    "0xBAA2": { "label": "Flagrant Fire III (spread)", "category": "spread", "shape": { "type": "circle", "radius": 5, "origin": "target" }, "telegraph": { "mode": "lookback", "s": 5 }, "conf": "v" },
+    "0xBAA3": { "label": "Flagrant Fire III (stack)", "category": "stack", "shape": { "type": "circle", "radius": 6, "origin": "target" }, "telegraph": { "mode": "lookback", "s": 5 }, "conf": "v" },
+
+    "0xBAA9": { "label": "Pulse Wave (knockback)", "category": "knockback", "shape": { "type": "knockback", "radius": 10, "origin": "target" }, "knockback": true, "conf": "v" },
+    "0xBAA8": { "label": "Wave Cannon (bait → tower)", "category": "bait", "shape": { "type": "rect", "length": 100, "width": 6, "origin": "caster", "heading": "towardTarget", "backLength": 0 }, "telegraph": { "mode": "lookback", "s": 2 }, "conf": "v src, i shape" },
+    "0xBAAA": { "label": "Explosion (tower, 1)", "category": "tower", "soakers": 1, "shape": { "type": "circle", "radius": 4, "origin": "castLoc" }, "conf": "v (validate-shapes)" },
+    "0xBAAB": { "label": "Unmitigated Explosion (tower missed)", "category": "failure", "shape": { "type": "none" }, "conf": "v" },
+    "0xBAA6": { "label": "Double-trouble Trap", "category": "info", "shape": { "type": "none" }, "conf": "v" },
+    "0xBAA7": { "label": "Double-trouble Trap (confetti)", "category": "stack", "shape": { "type": "circle", "radius": 6, "origin": "animTarget" }, "excludesHolder": true, "knockback": true, "telegraph": { "mode": "lookback", "s": 5 }, "conf": "v" },
+    "0xC622": { "label": "Light of Judgment", "category": "raidwide", "shape": { "type": "none" }, "conf": "v" },
+    "0xC24B": { "label": "Hyperdrive", "category": "tankbuster", "shape": { "type": "circle", "radius": 5, "origin": "target" }, "telegraph": { "mode": "lookback", "s": 2 }, "conf": "v id, i shape" },
+
+    "0xBAAC": { "label": "Gravitas (purple tether)", "category": "raidwide", "shape": { "type": "none" }, "conf": "v" },
+    "0xBAB0": { "label": "Vitrophyre (yellow tether)", "category": "info", "shape": { "type": "circle", "radius": 5, "origin": "target" }, "knockback": true, "conf": "v" },
+    "0xBAB1": { "label": "Gravitational Wave (west)", "category": "danger", "shape": { "type": "halfRoom", "origin": "fixed", "at": [100, 100], "heading": "fixed", "headingDeg": -90 }, "telegraph": { "mode": "lookback", "s": 5.1 }, "conf": "v" },
+    "0xBAB2": { "label": "Intemperate Will (east)", "category": "danger", "shape": { "type": "halfRoom", "origin": "fixed", "at": [100, 100], "heading": "fixed", "headingDeg": 90 }, "telegraph": { "mode": "lookback", "s": 5.1 }, "conf": "v" },
+    "0xBAAF": { "label": "Gravity III (puddle soak)", "category": "soak", "shape": { "type": "circle", "radius": 5, "origin": "caster" }, "conf": "v (validate-shapes)" },
+    "0xBAAD": { "label": "Gravitational Explosion (puddle failed)", "category": "failure", "shape": { "type": "none" }, "conf": "v" },
+    "0xBAB9": { "label": "Tele-trouncing", "category": "info", "shape": { "type": "none" }, "conf": "v" },
+    "0xBABA": { "label": "Tele-trouncing (drop)", "category": "info", "shape": { "type": "none" }, "conf": "v" },
+    "0xBAB5": { "label": "Indulgent Will (Confused)", "category": "debuff", "shape": { "type": "none" }, "conf": "v" },
+    "0xBAB6": { "label": "Idyllic Will (Sleep)", "category": "info", "shape": { "type": "circle", "radius": 5, "origin": "target" }, "conf": "v" },
+    "0xC554": { "label": "(gaze setup)", "category": "info", "shape": { "type": "none" }, "conf": "i" },
+    "0xC555": { "label": "(gaze setup 2)", "category": "info", "shape": { "type": "none" }, "conf": "i" },
+    "0xBAB3": { "label": "Ave Maria (look at statue)", "category": "gaze", "shape": { "type": "gaze", "origin": "caster" }, "telegraph": { "mode": "lookback", "s": 10 }, "conf": "v id/timing, d semantics" },
+    "0xBAB4": { "label": "Indolent Will (look away)", "category": "gaze", "shape": { "type": "gaze", "origin": "caster" }, "telegraph": { "mode": "lookback", "s": 10 }, "conf": "v id/timing, d semantics" },
+    "0xBABB": { "label": "Light of Judgment (enrage)", "category": "enrage", "shape": { "type": "none" }, "conf": "v" },
+
+    "0xC24C": { "label": "Ultimate Embrace (shared buster)", "category": "tankbuster", "shape": { "type": "circle", "radius": 5, "origin": "target" }, "conf": "v" },
+    "0xBABC": { "label": "Forsaken", "category": "raidwide", "shape": { "type": "none" }, "conf": "v" },
+    "0xBABE": { "label": "the Path of Light (tower, 2)", "category": "tower", "soakers": 2, "shape": { "type": "circle", "radius": 4, "origin": "caster" }, "telegraph": { "mode": "none" }, "conf": "v (validate-shapes)" },
+    "0xBABF": { "label": "the River of Light (tower missed)", "category": "failure", "shape": { "type": "none" }, "conf": "v" },
+    "0xBAC0": { "label": "Spelldriver (stack)", "category": "stack", "shape": { "type": "circle", "radius": 5, "origin": "animTarget" }, "telegraph": { "mode": "lookback", "s": 4 }, "conf": "v" },
+    "0xBAC1": { "label": "Spellscatter (spread)", "category": "spread", "shape": { "type": "circle", "radius": 5, "origin": "target" }, "telegraph": { "mode": "lookback", "s": 4 }, "conf": "v" },
+    "0xBAC2": { "label": "Spellwave (cone bait)", "category": "bait", "shape": { "type": "cone", "radius": 40, "angleDeg": 60, "origin": "caster", "heading": "resolution" }, "telegraph": { "mode": "lookback", "s": 4 }, "conf": "v holder, i shape" },
+    "0xBAD2": { "label": "Future's End", "category": "info", "shape": { "type": "none" }, "conf": "v" },
+    "0xBAD3": { "label": "Past's End", "category": "info", "shape": { "type": "none" }, "conf": "v" },
+    "0xBAD6": { "label": "Future's End (bait)", "category": "bait", "shape": { "type": "circle", "radius": 5, "origin": "target" }, "conf": "v" },
+    "0xBAD7": { "label": "Past's End (bait)", "category": "bait", "shape": { "type": "circle", "radius": 5, "origin": "target" }, "conf": "v" },
+    "0xBAD8": { "label": "Future's End (clone bait)", "category": "bait", "shape": { "type": "circle", "radius": 5, "origin": "target" }, "conf": "v" },
+    "0xBAD9": { "label": "Past's End (clone bait)", "category": "bait", "shape": { "type": "circle", "radius": 5, "origin": "target" }, "conf": "v" },
+    "0xBADC": { "label": "All Things Ending (Future)", "category": "danger", "shape": { "type": "halfRoom", "radius": 40, "origin": "castLoc", "heading": "resolution" }, "conf": "v heading, i shape" },
+    "0xBADD": { "label": "All Things Ending (Past)", "category": "danger", "shape": { "type": "halfRoom", "radius": 40, "origin": "castLoc", "heading": "cast" }, "conf": "v heading, i shape" }
+  },
+
+  "unboundAbilities": [
+    { "nameMatch": "Trine", "phase": "p2", "conf": "d" },
+    { "nameMatch": "Wings of Destruction", "phase": "p2", "conf": "d" }
+  ],
+
+  "triggers": [
+    {
+      "id": "p2_tower", "label": "Tower (2 soakers)", "category": "tower", "soakers": 2, "durationS": 10.1,
+      "on": { "mapEffect": { "flags": "0x00020001", "location": ["01", "02", "03", "04", "05", "06", "07", "08"] } },
+      "draw": { "type": "circle", "radius": 4, "origin": "point", "point": "towerSlot[location]" },
+      "conf": "v pos/timing, sheet radius"
+    }
+  ],
+
+  "headMarkers": {
+    "0x00DA": { "label": "Revolting Ruin III target", "color": "#ff4040", "durationS": 5, "conf": "v" },
+    "0x0103": { "label": "Ultimate Embrace", "color": "#ff4040", "durationS": 5, "conf": "v" },
+    "0x007F": { "label": "Fire: spread?", "color": "#ff8000", "durationS": 5, "conf": "v" },
+    "0x0080": { "label": "Fire: stack?", "color": "#ff8000", "durationS": 5, "conf": "v" },
+    "0x02A1": { "label": "Fire ring FAKE", "onBoss": true, "color": "#ff8000", "durationS": 6, "conf": "v" },
+    "0x02A2": { "label": "Fire ring REAL", "onBoss": true, "color": "#ff8000", "durationS": 6, "conf": "v" },
+    "0x02A3": { "label": "Ice ring FAKE", "onBoss": true, "color": "#60c0ff", "durationS": 6, "conf": "v" },
+    "0x02A4": { "label": "Ice ring REAL", "onBoss": true, "color": "#60c0ff", "durationS": 6, "conf": "v" },
+    "0x02A5": { "label": "Thunder ring FAKE", "onBoss": true, "color": "#e0e040", "durationS": 6, "conf": "v" },
+    "0x02A6": { "label": "Thunder ring REAL", "onBoss": true, "color": "#e0e040", "durationS": 6, "conf": "v" },
+    "0x02CB": { "label": "Spell's Trouble: stack", "color": "#40ff80", "durationS": 6, "conf": "v" },
+    "0x02CC": { "label": "Spell's Trouble: spread", "color": "#ff60c0", "durationS": 6, "conf": "v" },
+    "0x02CD": { "label": "Spell's Trouble: cone", "color": "#ffa040", "durationS": 6, "conf": "v" }
+  },
+
+  "tethers": {
+    "0x002D": {
+      "label": "Statue tether", "resolveWindowS": 15, "maxS": 15,
+      "labelsByNextAbility": {
+        "0xBAA9": "Knockback tether", "0xBAAC": "Purple tether (puddle)", "0xBAB0": "Yellow tether (knock-off)",
+        "0xBAB6": "Purple tether (Sleep)", "0xBAB5": "Yellow tether (Confused)"
+      },
+      "conf": "v"
+    }
+  },
+
+  "statuses": {
+    "0x13D6": "Double-trouble Trap",
+    "0x130C": "Tele-portent: North", "0x13D7": "Tele-portent: North",
+    "0x130D": "Tele-portent: South", "0x13D8": "Tele-portent: South",
+    "0x130E": "Tele-portent: East", "0x13D9": "Tele-portent: East",
+    "0x130F": "Tele-portent: West", "0x13DA": "Tele-portent: West",
+    "0x13DB": "Spells' Trouble", "0x503": "Confused", "0x131E": "Sleep",
+    "0xB5F": "Damage Down (tower failure)", "0xB7D": "Magic Vulnerability Up"
+  },
+
+  "director": {
+    "0x80000027": {
+      "0x01": "opening line", "0x0A": "voice line @51s", "0x02": "Graven Image II", "0x0B": "puddle puzzle OK",
+      "0x03": "Graven Image III", "0x0C": "teleporter puzzle OK", "0x05": "P1 end (puzzle failed)",
+      "0x0D": "P1 end (puzzle OK)", "0x08": "P1 enrage", "0x06": "P2 open (fail path)", "0x0E": "P2 open (ok path)"
+    },
+    "0x80000001": { "0x4F41": "P1 +10s", "0x4F42": "Graven Image II stage", "0x4F43": "Graven Image III stage", "0x4F44": "P2", "0x4F45": "reset" }
+  },
+
+  "failureActions": ["0xBAAB", "0xBAAD", "0xBABF", "0xBABB"]
+}

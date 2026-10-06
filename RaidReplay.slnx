@@ -1,0 +1,8 @@
+<Solution>
+  <Project Path="RaidReplay/RaidReplay.csproj">
+    <Platform Project="x64" />
+  </Project>
+  <Project Path="RaidReplay.Core/RaidReplay.Core.csproj" />
+  <Project Path="RaidReplay.Cli/RaidReplay.Cli.csproj" />
+  <Project Path="RaidReplay.Core.Tests/RaidReplay.Core.Tests.csproj" />
+</Solution>
