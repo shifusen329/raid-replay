@@ -29,7 +29,7 @@ A Dalamud plugin for FINAL FANTASY XIV that rebuilds every pull from your ACT ne
 3. Open `/xlplugins` → Dev Tools and enable **Raid Replay**.
 
 **Commands:**
-- `/raidreplay` (or `/rreplay`): the replay window.
+- `/raidreplay` (or `/rr`, `/rreplay`): the replay window.
 - `/aar` (or `/raidreplay report`): the after-action report of the last wipe; again to close.
 - `/raidreplay config`: settings.
 

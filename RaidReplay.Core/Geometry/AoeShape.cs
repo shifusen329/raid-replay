@@ -14,6 +14,9 @@ public enum ShapeType : byte
     HalfRoom,
     Knockback,
     Gaze,
+
+    /// <summary>A directional pad (e.g. an arrow teleporter): a disc of <see cref="AoeShape.Radius"/> pointing along the heading.</summary>
+    ArrowPad,
 }
 
 /// <summary>
@@ -45,6 +48,7 @@ public readonly record struct AoeShape(
         ShapeType.HalfRoom => "half-room",
         ShapeType.Knockback => $"knockback {Radius:0.#}",
         ShapeType.Gaze => "gaze",
+        ShapeType.ArrowPad => $"arrow pad r={Radius:0.#}",
         _ => "none",
     };
 }
@@ -58,6 +62,7 @@ public static class ShapeMath
         switch (s.Type)
         {
             case ShapeType.Circle:
+            case ShapeType.ArrowPad:
                 return d.Length() <= s.Radius + tolerance;
             case ShapeType.Donut:
             {

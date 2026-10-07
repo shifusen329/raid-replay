@@ -3,8 +3,8 @@
     "Author": "shifusen329",
     "Name": "Raid Replay",
     "InternalName": "RaidReplay",
-    "AssemblyVersion": "0.0.1.0",
-    "TestingAssemblyVersion": "0.0.1.0",
+    "AssemblyVersion": "0.0.2.0",
+    "TestingAssemblyVersion": "0.0.2.0",
     "Punchline": "Replay and analyze raid pulls from your ACT network logs.",
     "Description": "Reconstructs every pull from ACT network logs: arena map, waymarks, player positions and facing, boss casts and AoE telegraphs, towers, tethers, head markers and deaths, with a scrubbable timeline. Watches the live log and explains each wipe right after it happens: root cause, who was where, and where they should have been.\n\nAlpha: requires ACT with the FFXIV plugin writing network logs (default folder %USERPROFILE%\\AppData\\Roaming\\Advanced Combat Tracker\\FFXIVLogs). /aar opens the after-action report, /raidreplay the replay window.",
     "ApplicableVersion": "any",
@@ -17,10 +17,10 @@
     "IsTestingExclusive": false,
     "AcceptsFeedback": true,
     "DownloadCount": 0,
-    "LastUpdate": 1791314179,
-    "Changelog": "0.0.1 (alpha): first test build. Pull replay from ACT network logs, live wipe analysis with after-action report (/aar), Dancing Mad (Ultimate) P1-P2 pack: mitigation plan check, Damage Down resets, puddle/rock and confetti attribution, Tele-trouncing arrow puzzle attribution.",
-    "DownloadLinkInstall": "https://github.com/shifusen329/raid-replay/releases/download/v0.0.1/latest.zip",
-    "DownloadLinkTesting": "https://github.com/shifusen329/raid-replay/releases/download/v0.0.1/latest.zip",
-    "DownloadLinkUpdate": "https://github.com/shifusen329/raid-replay/releases/download/v0.0.1/latest.zip"
+    "LastUpdate": 1791331751,
+    "Changelog": "0.0.2 (alpha): Dancing Mad Phase 3 through Earthquake (sections, Chaos/Exdeath, crystals, attack shapes, limit-cut numbers, mitigation sheet), P3 wipe explanations (earth crystal double cleanse, Umbra Smash landing on the party), late P2 sections, /rr shortcut, in-game look for Tele-trouncing teleporters, P1 Kefka now drawn, fixes to spread/stack judgement and death recaps. 0.0.1: first test build.",
+    "DownloadLinkInstall": "https://github.com/shifusen329/raid-replay/releases/download/v0.0.2/latest.zip",
+    "DownloadLinkTesting": "https://github.com/shifusen329/raid-replay/releases/download/v0.0.2/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/shifusen329/raid-replay/releases/download/v0.0.2/latest.zip"
   }
 ]

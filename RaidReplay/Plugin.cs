@@ -27,6 +27,7 @@ public sealed class Plugin : IDalamudPlugin
 
     private const string CommandName = "/raidreplay";
     private const string CommandAlias = "/rreplay";
+    private const string ShortCommand = "/rr";
     private const string AarCommand = "/aar";
 
     public readonly WindowSystem WindowSystem = new("RaidReplay");
@@ -54,6 +55,8 @@ public sealed class Plugin : IDalamudPlugin
         };
         CommandManager.AddHandler(CommandName, help);
         CommandManager.AddHandler(CommandAlias, new CommandInfo(OnCommand) { HelpMessage = "Alias of /raidreplay.", ShowInHelp = false });
+        if (!CommandManager.AddHandler(ShortCommand, new CommandInfo(OnCommand) { HelpMessage = "Short for /raidreplay: opens the replay window ('/rr report', '/rr config' work too)." }))
+            Log.Warning($"{ShortCommand} is already taken by another plugin; use {CommandName} instead");
         CommandManager.AddHandler(AarCommand, new CommandInfo((_, _) => ToggleReport()) { HelpMessage = "Open the after-action report of the last wipe (again to close)." });
 
         PluginInterface.UiBuilder.Draw += DrawUi;
@@ -89,6 +92,7 @@ public sealed class Plugin : IDalamudPlugin
         WipeReportWindow.Dispose();
         CommandManager.RemoveHandler(CommandName);
         CommandManager.RemoveHandler(CommandAlias);
+        CommandManager.RemoveHandler(ShortCommand);
         CommandManager.RemoveHandler(AarCommand);
         Service.Dispose();
         Theme.Dispose();

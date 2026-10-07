@@ -156,6 +156,10 @@ internal sealed class PullBuilder : ILineConsumer
                 a.AddPos(t0, c.X, c.Y, c.Z, c.Heading, 0, PosFlags.None, order);
             if (c.MaxHp > 0)
                 a.Hp.Add((t0, c.Hp));
+
+            // Visibility as of the window start: otherwise an actor whose last change before the window made it visible
+            // (e.g. a boss shown 40s before the pull) looks hidden from the start once it is hidden later.
+            a.Model.Add((t0, c.ModelStatus));
         }
 
         foreach (var (marker, target) in world.Signs)
@@ -585,6 +589,7 @@ internal sealed class PullBuilder : ILineConsumer
 
         BuildCasts(replay);
         BuildActions(replay);
+        NameUnknownAbilities(replay);
         BuildStatuses(replay);
         BuildDeaths(replay);
 
@@ -785,6 +790,26 @@ internal sealed class PullBuilder : ILineConsumer
         {
             if (s.Name.Length == 0)
                 s.Name = data.GetStatus(s.StatusId)?.Name ?? $"Status {s.StatusId:X}";
+        }
+    }
+
+    /// <summary>ACT logs abilities it has no name for as "unknown_xxxx"; use the encounter pack's name when it has one.</summary>
+    private void NameUnknownAbilities(PullReplay replay)
+    {
+        if (enc == null)
+            return;
+        foreach (var a in replay.Actions)
+        {
+            if (a.Name.StartsWith("unknown_", StringComparison.OrdinalIgnoreCase) && enc.Abilities.TryGetValue(a.ActionId, out var def) &&
+                !string.IsNullOrEmpty(def.Name))
+                a.Name = def.Name;
+        }
+
+        foreach (var c in replay.Casts)
+        {
+            if (c.Name.StartsWith("unknown_", StringComparison.OrdinalIgnoreCase) && enc.Abilities.TryGetValue(c.ActionId, out var def) &&
+                !string.IsNullOrEmpty(def.Name))
+                c.Name = def.Name;
         }
     }
 

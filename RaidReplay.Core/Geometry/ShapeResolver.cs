@@ -60,6 +60,8 @@ public static partial class ShapeResolver
                 return new AoeShape(ShapeType.HalfRoom, def?.Radius ?? 40);
             case ShapeType.Knockback:
                 return new AoeShape(ShapeType.Knockback, def?.Radius ?? range);
+            case ShapeType.ArrowPad:
+                return new AoeShape(ShapeType.ArrowPad, def?.Radius ?? 1.5f);
             case ShapeType.Gaze:
                 return new AoeShape(ShapeType.Gaze, def?.Radius ?? 40);
             default:
@@ -75,7 +77,8 @@ public static partial class ShapeResolver
         "rect" => ShapeType.Rect,
         "cross" => ShapeType.Cross,
         "halfRoom" => ShapeType.HalfRoom,
-        "knockback" or "arrow" => ShapeType.Knockback,
+        "knockback" => ShapeType.Knockback,
+        "arrow" => ShapeType.ArrowPad,
         "gaze" => ShapeType.Gaze,
         _ => ShapeType.None,
     };

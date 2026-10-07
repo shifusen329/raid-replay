@@ -37,6 +37,21 @@ internal static partial class CliApp
         }
 
         Console.WriteLine();
+        if (o.Has("actors"))
+        {
+            // Every non-player actor: id, base, role, hitbox, lifetime, hidden spans and position sample count.
+            Console.WriteLine("actors:");
+            foreach (var a in r.Actors.Where(a => !a.IsPlayer && a.Kind != ActorKind.Pet).OrderBy(a => a.Kind).ThenBy(a => a.SpawnMs))
+            {
+                var hidden = string.Join(",", a.HiddenSpans.Select(s => $"{(s.Start == int.MinValue ? "start" : FormatDuration(s.Start))}..{(s.End == int.MaxValue ? "end" : FormatDuration(s.End))}"));
+                Console.WriteLine($"  {a.Kind,-12} {a.Id:X8} base={a.BNpcBaseId,-6} {a.Name,-24} r={a.Radius:0.##} " +
+                                  $"{(a.SpawnMs == int.MinValue ? "start" : FormatDuration(a.SpawnMs))}..{(a.DespawnMs == int.MaxValue ? "end" : FormatDuration(a.DespawnMs))} " +
+                                  $"samples={a.Track.Count}{(hidden.Length > 0 ? $" hidden={hidden}" : "")}");
+            }
+
+            Console.WriteLine();
+        }
+
         Console.WriteLine("phases:");
         foreach (var ph in r.Phases)
             Console.WriteLine($"  {(ph.IsSegment ? "  " : "")}{FormatDuration(ph.StartMs),8} .. {FormatDuration(ph.EndMs),8}  {ph.Name}");

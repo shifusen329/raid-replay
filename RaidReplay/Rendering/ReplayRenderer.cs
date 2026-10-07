@@ -26,6 +26,7 @@ public sealed class ReplayRenderer
     private readonly Comparison<int> byPriority;
     private PullReplay? legendFor;
     private readonly List<AoeCategory> legendCategories = [];
+    private bool legendHasPads;
     private ImDrawListPtr dl;
     private ArenaView view = null!;
 
@@ -212,6 +213,7 @@ public sealed class ReplayRenderer
         {
             legendFor = r;
             legendCategories.Clear();
+            legendHasPads = r.Aoes.Any(a => a.Shape.Type == ShapeType.ArrowPad);
             foreach (var a in r.Aoes)
             {
                 if (!legendCategories.Contains(a.Category))
@@ -226,7 +228,7 @@ public sealed class ReplayRenderer
         var rowH = lineH + (2 * s);
         var sw = 18 * s;
         const int fixedRows = 9;
-        var rows = fixedRows + legendCategories.Count;
+        var rows = fixedRows + legendCategories.Count + (legendHasPads ? 1 : 0);
         var maxRows = Math.Max(4, (int)((view.CanvasSize.Y - (60 * s)) / rowH));
         var cols = (rows + maxRows - 1) / maxRows;
         var perCol = (rows + cols - 1) / cols;
@@ -280,6 +282,13 @@ public sealed class ReplayRenderer
         var c8 = Cell(idx) + new Vector2(sw / 2, lineH / 2);
         dl.AddCircle(c8, 7 * s, Palette.Rgba(1, 1, 1, 0.55f), 16, 1);
         Row("Thin outline = inferred");
+
+        if (legendHasPads)
+        {
+            var padAoe = r.Aoes.First(a => a.Shape.Type == ShapeType.ArrowPad);
+            DrawArrowPadAt(Cell(idx) + new Vector2(sw / 2, lineH / 2), 7 * s, MathF.PI / 2, Palette.Parse(padAoe.Color, Palette.ForCategory(padAoe.Category)), 1f);
+            Row("Arrow teleporter (chevron = where it sends you)");
+        }
 
         foreach (var cat in legendCategories)
         {
@@ -390,7 +399,39 @@ public sealed class ReplayRenderer
     {
         var (origin, heading) = aoe.Placement(t);
         var baseColor = Palette.Parse(aoe.Color, Palette.ForCategory(aoe.Category));
-        DrawShape(aoe.Shape, origin, heading, Palette.With(baseColor, 0.12f), Palette.With(baseColor, 0.5f), true);
+        if (aoe.Shape.Type == ShapeType.ArrowPad)
+            DrawArrowPad(origin, heading, aoe.Shape.Radius, baseColor, 0.5f);
+        else
+            DrawShape(aoe.Shape, origin, heading, Palette.With(baseColor, 0.12f), Palette.With(baseColor, 0.5f), true);
+    }
+
+    /// <summary>
+    /// A directional pad as the game draws Tele-trouncing teleporters: an amber disc with a darker rim and a chevron
+    /// pointing the way it sends you. Persistent objects, so a fixed opacity rather than a telegraph fade.
+    /// </summary>
+    private void DrawArrowPad(Vector2 origin, float heading, float radius, Vector4 color, float alpha) =>
+        DrawArrowPadAt(view.ToScreen(origin), Math.Max(view.ToPixels(radius), 6 * Scale), heading, color, alpha);
+
+    private void DrawArrowPadAt(Vector2 c, float r, float heading, Vector4 color, float alpha)
+    {
+        var seg = Segments(r);
+        var dark = new Vector4(color.X * 0.6f, color.Y * 0.42f, color.Z * 0.25f, color.W);
+        var light = new Vector4(Math.Min(1, color.X + 0.08f), Math.Min(1, color.Y + 0.12f), Math.Min(1, color.Z + 0.1f), color.W);
+        dl.AddCircleFilled(c, r * 1.22f, Palette.With(color, 0.16f * alpha), seg);
+        dl.AddCircleFilled(c, r, Palette.With(color, 0.85f * alpha), seg);
+        dl.AddCircleFilled(c, r * 0.7f, Palette.With(light, 0.35f * alpha), seg);
+        dl.AddCircle(c, r, Palette.With(dark, 0.95f * alpha), seg, Math.Max(1.5f, r * 0.09f));
+
+        // Chevron: world heading (sin h, cos h) maps straight onto screen space (north up).
+        var dir = Angles.Dir(heading);
+        var perp = new Vector2(-dir.Y, dir.X);
+        var tip = c + (dir * r * 0.42f);
+        var back = c - (dir * r * 0.18f);
+        dl.PathClear();
+        dl.PathLineTo(back + (perp * r * 0.46f));
+        dl.PathLineTo(tip);
+        dl.PathLineTo(back - (perp * r * 0.46f));
+        dl.PathStroke(Palette.With(dark, alpha), ImDrawFlags.None, Math.Max(2f, r * 0.2f));
     }
 
     private void DrawDot(byte job, Vector2 p, float alpha)
@@ -584,7 +625,10 @@ public sealed class ReplayRenderer
             else if (config.OutlineRoomWideAoes && IsRoomWide(r, aoe))
                 fill = Math.Min(fill, 0.05f);
             var outlineAlpha = aoe.Inferred ? 0.55f : 0.9f;
-            DrawShape(aoe.Shape, origin, heading, Palette.With(baseColor, fill), Palette.With(baseColor, outlineAlpha), aoe.Inferred);
+            if (aoe.Shape.Type == ShapeType.ArrowPad)
+                DrawArrowPad(origin, heading, aoe.Shape.Radius, baseColor, 1f);
+            else
+                DrawShape(aoe.Shape, origin, heading, Palette.With(baseColor, fill), Palette.With(baseColor, outlineAlpha), aoe.Inferred);
 
             if (aoe.Category == AoeCategory.Tower && aoe.Soakers > 0)
             {
@@ -597,6 +641,7 @@ public sealed class ReplayRenderer
                 HoveredAoe ??= aoe;
                 var remain = aoe.ResolveMs - t;
                 tooltip.AppendLine($"{aoe.Label} [{aoe.Category}] {aoe.Shape}" +
+                                   (aoe.Shape.Type == ShapeType.ArrowPad ? $", sends you {Core.Analysis.ArrowSquare.Compass(heading)}" : "") +
                                    (remain > 0 ? $"  resolves in {remain / 1000f:0.0}s" : "") +
                                    (aoe.Inferred ? "  (inferred)" : ""));
                 tooltip.AppendLine($"  0x{aoe.ActionId:X4} · {aoe.ShapeSource}{(aoe.Conf != null ? $" · conf {aoe.Conf}" : "")}");

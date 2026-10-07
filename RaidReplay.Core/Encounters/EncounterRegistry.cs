@@ -246,6 +246,8 @@ public static class EncounterValidator
                 problems.Add($"abilities[{id}]: unknown telegraph mode '{a.Telegraph.Mode}'");
             if (a.SoakGroup != null && (a.SoakGroup != "role" || a.Soakers is null or <= 0))
                 problems.Add($"abilities[{id}]: soakGroup must be \"role\" and needs soakers");
+            if (a.Bait is not (null or "farthest" or "closest"))
+                problems.Add($"abilities[{id}]: bait must be \"farthest\" or \"closest\"");
             foreach (var p in a.Positions ?? [])
             {
                 if (p.Group is not ("support" or "dps" or "any"))
@@ -299,6 +301,14 @@ public static class EncounterValidator
                         problems.Add($"mitigation[{mm.Id}]: unknown ability '{token}'");
                 }
             }
+        }
+
+        foreach (var cp in def.CleansePulses)
+        {
+            if (cp.PulseActions.Count == 0 || cp.VulnStatus.Length == 0 || cp.Cleanses.Count == 0 || cp.WindowS <= 0)
+                problems.Add($"cleansePulses[{cp.Label}]: needs pulseActions, vulnStatus, cleanses and a positive windowS");
+            foreach (var c in cp.Cleanses.Where(c => c.By is not ("heal" or "lethal") || c.Status.Length == 0))
+                problems.Add($"cleansePulses[{cp.Label}]: cleanse '{c.Status}' needs a status and by = heal or lethal");
         }
 
         if (def.ArrowPuzzle is { } ap)

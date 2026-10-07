@@ -58,6 +58,8 @@ internal static partial class CliApp
                 "arrows" => Arrows(opts),
                 "arrows-calibrate" => ArrowsCalibrate(opts),
                 "stack-survey" => StackSurvey(opts),
+                "statuses" => Statuses(opts),
+                "status-detail" => StatusDetail(opts),
                 "validate-contact" => ValidateContact(opts),
                 "watch" => Watch(opts),
                 "simulate" => Simulate(opts),

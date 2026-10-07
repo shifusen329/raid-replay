@@ -65,6 +65,7 @@ public sealed class EncounterDefinition
     public List<HexId> FailureActions { get; set; } = [];
     public MitigationPlanDef? Mitigation { get; set; }
     public ArrowSquareDef? ArrowPuzzle { get; set; }
+    public List<CleansePulseDef> CleansePulses { get; set; } = [];
     public string? Notes { get; set; }
 }
 
@@ -271,6 +272,15 @@ public sealed class AbilityDef
     /// <summary>For stacks/knockbacks: where the holder and the soakers are supposed to stand, per occurrence and group.</summary>
     public List<StackPositionDef>? Positions { get; set; }
 
+    /// <summary>Damage falls off with distance (everyone is hit; only big hits mean someone stood too close).</summary>
+    public bool Proximity { get; set; }
+
+    /// <summary>
+    /// Who the ability goes to, measured from the caster when the cast starts: "farthest" or "closest". Lets the analyzer
+    /// say who ended up baiting it when it lands on the party.
+    /// </summary>
+    public string? Bait { get; set; }
+
     public List<HexId>? ResolvesWith { get; set; }
     public bool ExcludesHolder { get; set; }
     public bool Knockback { get; set; }
@@ -288,6 +298,36 @@ public sealed class AbilityDef
 
     /// <summary>Text for the intended timing, e.g. "after the 2nd confetti knockback".</summary>
     public string? NotBeforeLabel { get; set; }
+}
+
+/// <summary>
+/// A raidwide pulse fired each time a debuff is cleansed (e.g. DMU P3's earth crystal: healing an Accretion to full, or a
+/// lethal hit on Primordial Crust). Each pulse leaves a vulnerability for a few seconds, so two cleanses inside that window
+/// stack two pulses and wipe the party. The analyzer names which cleanses came too close together and what caused them.
+/// </summary>
+public sealed class CleansePulseDef
+{
+    public string Label { get; set; } = "Pulse";
+    public List<HexId> PulseActions { get; set; } = [];
+
+    /// <summary>Name (prefix) of the vulnerability each pulse applies.</summary>
+    public string VulnStatus { get; set; } = string.Empty;
+
+    /// <summary>How long that vulnerability lasts: a second cleanse inside it is lethal.</summary>
+    public float WindowS { get; set; } = 4;
+
+    public List<CleanseDef> Cleanses { get; set; } = [];
+    public string? Note { get; set; }
+    public string? Conf { get; set; }
+}
+
+public sealed class CleanseDef
+{
+    /// <summary>Status name (prefix) whose removal fires a pulse.</summary>
+    public string Status { get; set; } = string.Empty;
+
+    /// <summary>"heal" = removed by being healed to full; "lethal" = removed by taking a lethal hit.</summary>
+    public string By { get; set; } = "heal";
 }
 
 /// <summary>

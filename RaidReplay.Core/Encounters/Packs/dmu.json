@@ -1,14 +1,16 @@
 {
-  // Dancing Mad (Ultimate). conf: v = verified in ACT logs (2026-09-18..10-06, P1+P2), i = inferred, d = from guides only.
+  // Dancing Mad (Ultimate). conf: v = verified in ACT logs (2026-09-18..10-06 P1+P2; an FC log of 2026-09-27 for late P2 and
+  // P3 up to Earthquake), i = inferred, d = from guides only.
   "schema": 1,
   "key": "dmu",
   "name": "Dancing Mad (Ultimate)",
-  "notes": "Logs only cover P1 and P2 (to tower set 8). P3-P5 entries are placeholders from the guides.",
+  "notes": "P1 and P2 verified on our logs; late P2 (Trine, Wings, Ultimate Embrace II) and P3 up to Earthquake verified on an FC log (two P3 pulls, 8:35 and 9:30). The rest of P3 (hand slams, black-hole tethers, Blizzard III, towers) and P4-P5 are from the guides.",
   "match": { "territoryIds": ["0x553"], "mapIds": [79] },
 
   "arena": {
     "center": [100, 100], "shape": "circle", "radius": 20, "viewRadius": 24, "fallRadius": 21, "useMapTexture": true,
     "points": {
+      "center": [100, 100],
       "statueWaveCannon": [100, 65], "statuePurple": [102.5, 27], "statueYellow": [126, 41.5],
       "statueIndolent": [107, 43], "statueAveMaria": [95, 25]
     },
@@ -25,18 +27,26 @@
     { "bnpcBase": 19504, "role": "boss", "label": "Kefka", "hitbox": 6.0, "conf": "v" },
     { "bnpcBase": 19506, "role": "boss", "label": "Forsaken Kefka", "hitbox": 6.02, "conf": "v" },
     { "bnpcBase": 19513, "role": "clone", "label": "Kefka (clone)", "hitbox": 3.5, "conf": "v" },
+    { "bnpcBase": 19508, "role": "boss", "label": "Chaos", "hitbox": 6.0, "conf": "v P3 (spawns 7:00.5, targetable 7:05)" },
+    { "bnpcBase": 19509, "role": "boss", "label": "Exdeath", "hitbox": 3.8, "conf": "v P3" },
+    { "bnpcBase": 19451, "role": "enemy", "label": "Kefka (dash)", "hitbox": 2.7, "conf": "v P3: 8 copies; Ultima Blaster dashes and limit-cut lines" },
+    { "bnpcBase": 18475, "role": "helper", "render": false, "conf": "v P3: hidden the whole phase" },
     { "bnpcBase": 19505, "role": "emitter", "label": "Graven Image", "render": false, "conf": "v" },
     { "bnpcBase": 9020, "role": "helper", "render": false, "conf": "v" }
   ],
 
   "eobjs": [
     { "base": "0x1EC022", "label": "Gravitas puddle", "draw": { "type": "circle", "radius": 5 }, "category": "hazard", "color": "#a050ff", "conf": "v pos, i radius" },
-    { "base": "0x1EC023", "label": "Teleporter", "draw": { "type": "arrow", "radius": 2.5 }, "category": "info", "color": "#40c0ff", "conf": "v pos/heading" },
+    { "base": "0x1EC023", "label": "Teleporter", "draw": { "type": "arrow", "radius": 1.5 }, "category": "info", "color": "#f2a33a", "conf": "v pos/heading; i radius ~1.5y and amber look from the in-game reference image" },
     { "base": "0x1EBFBB", "label": "Statue (Wave Cannon)", "render": false, "conf": "v" },
     { "base": "0x1EBFBC", "label": "Statue purple side", "render": false, "conf": "v" },
     { "base": "0x1EBFBD", "label": "Statue yellow side", "render": false, "conf": "v" },
     { "base": "0x1EBFBE", "label": "Statue (Indolent Will)", "render": false, "conf": "v" },
-    { "base": "0x1EBFBF", "label": "Statue (Ave Maria)", "render": false, "conf": "v" }
+    { "base": "0x1EBFBF", "label": "Statue (Ave Maria)", "render": false, "conf": "v" },
+    { "base": "0x1EC03A", "label": "Fire crystal (donut + knockback on the 2 closest)", "draw": { "type": "circle", "radius": 1.5 }, "category": "info", "color": "#ff6a30", "conf": "v P3: intercardinal ~14y out, gone after Inferno" },
+    { "base": "0x1EC03B", "label": "Water crystal (AoE + knockback on the 2 closest)", "draw": { "type": "circle", "radius": 1.5 }, "category": "info", "color": "#3a8cff", "conf": "v P3: intercardinal ~14y out, gone after Tsunami" },
+    { "base": "0x1EC03C", "label": "Wind crystal (stack per wind debuff removed)", "draw": { "type": "circle", "radius": 1.5 }, "category": "info", "color": "#4fe08a", "conf": "v P3: intercardinal ~14y out, gone after Cyclone" },
+    { "base": "0x1EC03D", "label": "Earth crystal (pulse per cleanse)", "draw": { "type": "circle", "radius": 1.5 }, "category": "info", "color": "#c8a060", "conf": "v P3: at (100,104) from Earthquake" }
   ],
 
   "phases": [
@@ -58,11 +68,33 @@
       ] },
       "segments": [
         { "id": "p2_ue", "name": "Ultimate Embrace", "start": { "castStart": { "ids": ["0xC24C"] } } },
-        { "id": "p2_forsaken", "name": "Forsaken towers", "start": { "castStart": { "ids": ["0xBABC"] } } }
+        { "id": "p2_forsaken", "name": "Forsaken towers", "start": { "castStart": { "ids": ["0xBABC"] } } },
+        { "id": "p2_loj", "name": "Light of Judgment II", "start": { "castStart": { "ids": ["0xBABD"] } } },
+        { "id": "p2_trine", "name": "Trine + Wings of Destruction", "start": { "castStart": { "ids": ["0xBADF"] } } },
+        { "id": "p2_ue2", "name": "Ultimate Embrace II", "start": { "castStart": { "ids": ["0xC24C"] } } }
       ]
     },
-    { "id": "p3", "name": "P3 Chaos & Exdeath", "expectedS": 382, "conf": "d",
-      "start": { "anyOf": [ { "spawn": { "names": ["Chaos", "Exdeath"] } } ] } },
+    {
+      // P3 begins when P2's Kefka gives way to the transition (Aero III Assault ~6:24, the sheet's phase 0:00 is 6:22);
+      // Chaos and Exdeath spawn at ~7:00 after the cutscene.
+      "id": "p3", "name": "P3 Chaos & Exdeath", "expectedS": 382, "conf": "v",
+      "start": { "anyOf": [
+        { "castStart": { "ids": ["0xC3F7"] } },
+        { "director": { "command": "0x80000001", "p1": ["0x4F45"] } },
+        { "spawn": { "bnpcBase": [19508, 19509] } }
+      ] },
+      "segments": [
+        { "id": "p3_transition", "name": "Transition", "start": { "castStart": { "ids": ["0xC3F7"] } } },
+        { "id": "p3_decisive", "name": "The Decisive Battle", "start": { "castStart": { "ids": ["0xC2E2"] } } },
+        { "id": "p3_bowels", "name": "Bowels of Agony", "start": { "castStart": { "ids": ["0xBAF2"] } } },
+        { "id": "p3_implosion", "name": "Implosion", "start": { "castStart": { "ids": ["0xBAFD", "0xBAFE"] } } },
+        { "id": "p3_umbra", "name": "Umbra Smash + Ultima Blaster", "start": { "castStart": { "ids": ["0xBB00"] } } },
+        { "id": "p3_limit_cut", "name": "Limit cut", "start": { "headMarker": { "ids": ["0x0150", "0x0151", "0x0152", "0x0153", "0x01B5", "0x01B6", "0x01B7", "0x01B8"] } } },
+        { "id": "p3_decisive2", "name": "The Decisive Battle II", "start": { "castStart": { "ids": ["0xC2E2"] } } },
+        { "id": "p3_earthquake", "name": "Earthquake", "start": { "castStart": { "ids": ["0xC571", "0xC572"] } } },
+        { "id": "p3_giant", "name": "Giant Kefka", "start": { "castStart": { "ids": ["0xBAE7"] } } }
+      ]
+    },
     { "id": "p4", "name": "P4 Kefka Says", "expectedS": 734, "conf": "d",
       "start": { "anyOf": [ { "castStart": { "names": ["Kefka Says"] } } ] } },
     { "id": "p5", "name": "P5 Kefka Reimagined", "expectedS": 862, "conf": "d",
@@ -85,10 +117,24 @@
     { "id": "p2_ultimate_embrace", "label": "Ultimate Embrace", "phase": "p2", "trigger": { "castStart": { "ids": ["0xC24C"] } } },
     { "id": "p2_forsaken", "label": "Forsaken", "phase": "p2", "trigger": { "castStart": { "ids": ["0xBABC"] } } },
     { "id": "p2_futures_end", "label": "Future's End", "phase": "p2", "trigger": { "castStart": { "ids": ["0xBAD2"] } } },
-    { "id": "p2_pasts_end", "label": "Past's End", "phase": "p2", "trigger": { "castStart": { "ids": ["0xBAD3"] } } }
+    { "id": "p2_pasts_end", "label": "Past's End", "phase": "p2", "trigger": { "castStart": { "ids": ["0xBAD3"] } } },
+    { "id": "p2_trine", "label": "Trine + Wings of Destruction", "phase": "p2", "trigger": { "castStart": { "ids": ["0xBADF"] } } },
+    { "id": "p3_decisive_battle", "label": "The Decisive Battle", "phase": "p3", "trigger": { "castStart": { "ids": ["0xC2E2"] } } },
+    { "id": "p3_bowels_of_agony", "label": "Bowels of Agony", "phase": "p3", "trigger": { "castStart": { "ids": ["0xBAF2"] } }, "durationS": 6 },
+    { "id": "p3_elements_short", "label": "Stray Flames/Tsunami (short debuffs)", "phase": "p3", "trigger": { "ability": { "ids": ["0xBAF3", "0xBAF5", "0xBAF6", "0xBAF4"] }, "occurrence": 1 } },
+    { "id": "p3_thunder_aoe", "label": "Thunder III (big AoE)", "phase": "p3", "trigger": { "castStart": { "ids": ["0xBB12"] } } },
+    { "id": "p3_thunder_buster", "label": "Thunder III (buster)", "phase": "p3", "trigger": { "castStart": { "ids": ["0xBB09"] } } },
+    { "id": "p3_implosion", "label": "Implosion", "phase": "p3", "trigger": { "castStart": { "ids": ["0xBAFD", "0xBAFE"] } } },
+    { "id": "p3_umbra_smash", "label": "Umbra Smash", "phase": "p3", "trigger": { "castStart": { "ids": ["0xBB00"] } } },
+    { "id": "p3_ultima_blaster", "label": "Ultima Blaster (Kefka dashes)", "phase": "p3", "trigger": { "ability": { "ids": ["0xBAE3"] }, "occurrence": 1 }, "durationS": 15 },
+    { "id": "p3_vacuum_wave", "label": "Vacuum Wave", "phase": "p3", "trigger": { "castStart": { "ids": ["0xBB13"] } } },
+    { "id": "p3_cyclone", "label": "Cyclone (wind stacks)", "phase": "p3", "trigger": { "ability": { "ids": ["0xBAF8"] }, "occurrence": 1 } },
+    { "id": "p3_limit_cut", "label": "Limit cut", "phase": "p3", "trigger": { "headMarker": { "ids": ["0x0150"] } }, "durationS": 15 },
+    { "id": "p3_earthquake", "label": "Earthquake / Accretion", "phase": "p3", "trigger": { "castStart": { "ids": ["0xC571"] } }, "durationS": 15 }
   ],
 
   "abilities": {
+    "0xC250": { "name": "attack", "category": "ignore", "conf": "v auto-attack (Exdeath, P3)" },
     "0xC252": { "name": "attack", "category": "ignore", "conf": "v" },
     "0xC3FD": { "name": "(jump to center)", "category": "ignore", "conf": "v" },
     "0xBCF2": { "name": "Graven Image", "category": "info", "shape": { "type": "none" }, "conf": "v" },
@@ -140,8 +186,8 @@
     "0xBABA": { "label": "Tele-trouncing (drop)", "category": "info", "shape": { "type": "none" }, "conf": "v" },
     "0xBAB5": { "label": "Indulgent Will (Confused)", "category": "debuff", "shape": { "type": "none" }, "conf": "v" },
     "0xBAB6": { "label": "Idyllic Will (Sleep)", "category": "info", "shape": { "type": "circle", "radius": 5, "origin": "target" }, "conf": "v" },
-    "0xC554": { "label": "(gaze setup)", "category": "info", "shape": { "type": "none" }, "conf": "i" },
-    "0xC555": { "label": "(gaze setup 2)", "category": "info", "shape": { "type": "none" }, "conf": "i" },
+    "0xC554": { "label": "(Kefka setup cast)", "category": "info", "shape": { "type": "none" }, "conf": "v P1 before the gaze; P3 at 7:12 from (100,90)" },
+    "0xC555": { "label": "(Kefka setup cast 2)", "category": "info", "shape": { "type": "none" }, "conf": "v P1 and P3" },
     "0xBAB3": { "label": "Ave Maria (look at statue)", "category": "gaze", "shape": { "type": "gaze", "origin": "caster" }, "telegraph": { "mode": "lookback", "s": 10 }, "conf": "v id/timing, d semantics" },
     "0xBAB4": { "label": "Indolent Will (look away)", "category": "gaze", "shape": { "type": "gaze", "origin": "caster" }, "telegraph": { "mode": "lookback", "s": 10 }, "conf": "v id/timing, d semantics" },
     "0xBABB": { "label": "Light of Judgment (enrage)", "category": "enrage", "shape": { "type": "none" }, "conf": "v" },
@@ -160,12 +206,54 @@
     "0xBAD8": { "label": "Future's End (clone bait)", "category": "bait", "shape": { "type": "circle", "radius": 5, "origin": "target" }, "conf": "v" },
     "0xBAD9": { "label": "Past's End (clone bait)", "category": "bait", "shape": { "type": "circle", "radius": 5, "origin": "target" }, "conf": "v" },
     "0xBADC": { "label": "All Things Ending (Future)", "category": "danger", "shape": { "type": "halfRoom", "radius": 40, "origin": "castLoc", "heading": "resolution" }, "conf": "v heading, i shape" },
-    "0xBADD": { "label": "All Things Ending (Past)", "category": "danger", "shape": { "type": "halfRoom", "radius": 40, "origin": "castLoc", "heading": "cast" }, "conf": "v heading, i shape" }
+    "0xBADD": { "label": "All Things Ending (Past)", "category": "danger", "shape": { "type": "halfRoom", "radius": 40, "origin": "castLoc", "heading": "cast" }, "conf": "v heading, i shape" },
+
+    // ---- late P2 (FC log 2026-09-27) ----
+    "0xBADF": { "label": "Trine", "category": "info", "shape": { "type": "none" }, "conf": "v" },
+    "0xBAE0": { "label": "Trine (falling triangle point)", "category": "danger", "conf": "v game shape: 42 circles r6 dropped in sequence" },
+    "0xBACD": { "label": "Wings of Destruction (half-room)", "category": "danger", "conf": "v cast; i shape: the game's 40y-wide strip centred on the cast point covers one half of the arena (nobody was hit)" },
+    "0xC487": { "label": "Wings of Destruction (closest + farthest busters)", "category": "info", "shape": { "type": "none" }, "conf": "d the buster hits themselves are not in the log" },
+
+    // ---- P3: transition ----
+    "0xC3F7": { "label": "Aero III Assault (transition knockback)", "category": "knockback", "shape": { "type": "knockback", "radius": 10, "origin": "caster" }, "conf": "v no damage, hits all 8" },
+    "0xBAE2": { "label": "Definition of Insanity (P3 start)", "category": "info", "shape": { "type": "none" }, "conf": "v" },
+
+    // ---- P3: Chaos ----
+    "0xC2E2": { "label": "the Decisive Battle (Chaos: Epic Hero)", "category": "info", "shape": { "type": "none" }, "conf": "v the 4 closest get Epic Hero" },
+    "0xBAF2": { "label": "Bowels of Agony", "category": "raidwide", "shape": { "type": "none" }, "conf": "v raidwide; applies Headwind/Tailwind, Entropy x2, Dynamic Fluid x2, spawns the element crystals" },
+    "0xBAFD": { "label": "Longitudinal Implosion (front/back first)", "category": "info", "shape": { "type": "none" }, "conf": "v" },
+    "0xBAFE": { "label": "Latitudinal Implosion (sides first)", "category": "info", "shape": { "type": "none" }, "conf": "v" },
+    "0xBAFF": { "label": "Shockwave (Implosion cleave)", "category": "danger", "shape": { "type": "cone", "radius": 40, "angleDeg": 90, "origin": "caster", "heading": "resolution" }, "telegraph": { "mode": "lookback", "s": 2 }, "conf": "v two pairs of opposite 90-degree cleaves from Chaos" },
+    "0xBB00": { "label": "Umbra Smash (jumps to the farthest player)", "category": "danger", "proximity": true, "bait": "farthest", "shape": { "type": "circle", "radius": 12, "origin": "castLoc" }, "conf": "v landing = the farthest player at cast start; 2-3M within ~3y, <10k at 21y. i radius drawn = heavy-damage zone" },
+    "0xC571": { "label": "Earthquake (cast)", "category": "info", "shape": { "type": "none" }, "conf": "v" },
+    "0xC2E4": { "label": "Aetherlink (Chaos)", "category": "info", "shape": { "type": "none" }, "conf": "v" },
+
+    // ---- P3: Exdeath ----
+    "0xC2E3": { "label": "the Decisive Battle (Exdeath: Fated Hero)", "category": "info", "shape": { "type": "none" }, "conf": "v" },
+    "0xBB12": { "label": "Thunder III (big AoE on Exdeath)", "category": "danger", "conf": "v game shape: circle r14.8 around Exdeath (guide ~15y)" },
+    "0xBB09": { "label": "Thunder III (buster cast)", "category": "info", "shape": { "type": "none" }, "conf": "v" },
+    "0xBB0C": { "label": "Thunder III (buster on the closest player)", "category": "tankbuster", "conf": "v two hits 3s apart, r5 on the target" },
+    "0xBB13": { "label": "Vacuum Wave (knockback from Exdeath)", "category": "knockback", "shape": { "type": "knockback", "radius": 20, "origin": "caster" }, "conf": "v no damage, hits all 8; i distance" },
+    "0xC2E5": { "label": "Aetherlink (Exdeath)", "category": "info", "shape": { "type": "none" }, "conf": "v" },
+
+    // ---- P3: element crystals and debuffs ----
+    "0xBAF3": { "label": "Stray Flames (Entropy spread)", "category": "spread", "conf": "v game shape r5 on the debuffed player" },
+    "0xBAF6": { "label": "Stray Spray (Dynamic Fluid donut)", "category": "spread", "conf": "v game shape donut 4-10 on the debuffed player" },
+    "0xBAF4": { "label": "Inferno (fire crystal donut + knockback)", "category": "bait", "knockback": true, "shape": { "type": "donut", "innerRadius": 4, "radius": 10, "origin": "animTarget" }, "conf": "v target = a player closest to the fire crystal; i shape" },
+    "0xBAF5": { "label": "Tsunami (water crystal AoE + knockback)", "category": "bait", "knockback": true, "shape": { "type": "circle", "radius": 5, "origin": "animTarget" }, "conf": "v target = a player closest to the water crystal" },
+    "0xBAF8": { "label": "Cyclone (wind crystal stack)", "category": "stack", "soakers": 2, "conf": "v game shape r6; one stack per wind debuff removed; taken alone it hits ~600k (FC #3), shared ~8k" },
+    "0xC572": { "label": "Earthquake (everyone to 1 HP; Accretion, Primordial Crust, In Line)", "category": "raidwide", "conf": "v" },
+    "0xBAFA": { "label": "Earth crystal pulse", "category": "raidwide", "conf": "v one per Accretion / Primordial Crust cleanse; applies Earth Resistance Down II" },
+
+    // ---- P3: Kefka ----
+    "0xC2D6": { "label": "Trance (Kefka charges)", "category": "info", "shape": { "type": "none" }, "conf": "v" },
+    "0xBAE3": { "label": "Ultima Blaster (Kefka dash)", "category": "raidwide", "shape": { "type": "rect", "length": 22, "backLength": 22, "width": 10, "origin": "point", "point": "center", "heading": "resolution" }, "conf": "v unavoidable, every 2s rotating 45 degrees; i 10y band through the centre (guide image)" },
+    "0xBAE4": { "label": "Ultima Blaster (limit-cut line)", "category": "bait", "conf": "v game shape: 6y-wide line through the numbered player, in number order 0.2-0.3s apart" },
+    "0xBAE5": { "label": "Max (Kefka turns giant)", "category": "info", "shape": { "type": "none" }, "conf": "v" },
+    "0xBAE7": { "label": "Slap Happy (giant Kefka)", "category": "info", "shape": { "type": "none" }, "conf": "v cast seen at 9:30; never resolved in these logs" }
   },
 
   "unboundAbilities": [
-    { "nameMatch": "Trine", "phase": "p2", "conf": "d" },
-    { "nameMatch": "Wings of Destruction", "phase": "p2", "conf": "d" }
   ],
 
   "triggers": [
@@ -190,7 +278,15 @@
     "0x02A6": { "label": "Thunder ring REAL", "onBoss": true, "color": "#e0e040", "durationS": 6, "conf": "v" },
     "0x02CB": { "label": "Spell's Trouble: stack", "color": "#40ff80", "durationS": 6, "conf": "v" },
     "0x02CC": { "label": "Spell's Trouble: spread", "color": "#ff60c0", "durationS": 6, "conf": "v" },
-    "0x02CD": { "label": "Spell's Trouble: cone", "color": "#ffa040", "durationS": 6, "conf": "v" }
+    "0x02CD": { "label": "Spell's Trouble: cone", "color": "#ffa040", "durationS": 6, "conf": "v" },
+    "0x0150": { "label": "Limit cut 1", "color": "#ff5050", "durationS": 14, "conf": "v order = Ultima Blaster line order" },
+    "0x0151": { "label": "Limit cut 2", "color": "#ff5050", "durationS": 14, "conf": "v" },
+    "0x0152": { "label": "Limit cut 3", "color": "#ff5050", "durationS": 14, "conf": "v" },
+    "0x0153": { "label": "Limit cut 4", "color": "#ff5050", "durationS": 14, "conf": "v" },
+    "0x01B5": { "label": "Limit cut 5", "color": "#5080ff", "durationS": 14, "conf": "v" },
+    "0x01B6": { "label": "Limit cut 6", "color": "#5080ff", "durationS": 14, "conf": "v" },
+    "0x01B7": { "label": "Limit cut 7", "color": "#5080ff", "durationS": 14, "conf": "v" },
+    "0x01B8": { "label": "Limit cut 8", "color": "#5080ff", "durationS": 14, "conf": "v" }
   },
 
   "tethers": {
@@ -224,7 +320,7 @@
   },
 
   "mitigation": {
-    "source": "Ikuya Mitty DMU mitigation sheet (P1, P2)",
+    "source": "Ikuya Mitty DMU mitigation sheet (P1, P2, P3 to Earthquake)",
     "note": "Reference, not gospel: entries are only flagged when the cooldown was available; the sheet asks for some cooldowns twice within their recast (e.g. D3 party mit at 0:38 and 1:58 with a 120s recast). D1-D4 = M1, M2, R1, R2. Free-text cells (P2 'Assist Tanks') are not checked.",
     "mechanics": [
       { "id": "mystery_magic_1", "name": "Mystery Magic", "atS": 38, "hits": ["0xBAA2", "0xBAA3"], "plan": [
@@ -372,9 +468,75 @@
         { "slot": "AST", "carry": ["Collective Unconscious"] },
         { "slot": "SCH", "carry": ["Sacred Soil", "Fey Illumination", "Summon Seraph"] },
         { "slot": "SGE", "carry": ["Kerachole", "Panhaima"] },
-        { "slot": "D2", "carry": ["Feint"] } ] }
+        { "slot": "D2", "carry": ["Feint"] } ] },
+
+      // ---- P3 (Chaos & Exdeath) through Earthquake: the parts seen in a log. The sheet's times match the FC log of 2026-09-27.
+      { "id": "p3_bowels", "name": "Bowels of Agony", "atS": 450, "hits": ["0xBAF2"], "plan": [
+        { "slot": "MT", "use": ["Reprisal"] },
+        { "slot": "WHM", "use": ["Plenary Indulgence"] },
+        { "slot": "AST", "use": ["Collective Unconscious"] },
+        { "slot": "SCH", "use": ["Sacred Soil"] },
+        { "slot": "SGE", "use": ["Kerachole"] },
+        { "slot": "D1", "use": ["Feint"] } ] },
+      { "id": "p3_elements_1", "name": "Stray Flames/Tsunami", "atS": 470, "hits": ["0xBAF3", "0xBAF5", "0xBAF6", "0xBAF4"], "plan": [
+        { "slot": "MT", "use": ["@partyMit"] },
+        { "slot": "SCH", "use": ["Spreadlo", "Sacred Soil"] },
+        { "slot": "SGE", "use": ["Zoe Shields", "Kerachole"] } ] },
+      { "id": "p3_thunder_1", "name": "Thunder III (1st set)", "atS": 478, "hits": ["0xBB0C"], "plan": [
+        { "slot": "OT", "use": ["Reprisal"] },
+        { "slot": "SCH", "use": ["Expedient"] },
+        { "slot": "SGE", "use": ["Holos"] },
+        { "slot": "D4", "use": ["Addle"] } ] },
+      { "id": "p3_elements_2", "name": "Stray Flames/Tsunami", "atS": 497, "hits": ["0xBAF3", "0xBAF5", "0xBAF6", "0xBAF4"], "plan": [
+        { "slot": "OT", "use": ["@partyMit"] },
+        { "slot": "WHM", "use": ["Temperance"] },
+        { "slot": "AST", "use": ["Neutral Sect"] },
+        { "slot": "SCH", "use": ["Summon Seraph"], "carry": ["Expedient"] },
+        { "slot": "SGE", "carry": ["Holos"] } ] },
+      { "id": "p3_ultima_blaster", "name": "Ultima Blaster", "atS": 507, "hits": ["0xBAE3"], "plan": [
+        { "slot": "MT", "use": ["Reprisal"] },
+        { "slot": "WHM", "carry": ["Temperance"] },
+        { "slot": "AST", "use": ["Sun Sign"], "carry": ["Neutral Sect"] },
+        { "slot": "SCH", "use": ["Sacred Soil", "Fey Illumination", "Seraphism"] },
+        { "slot": "SGE", "use": ["Kerachole", "Panhaima"] },
+        { "slot": "D2", "use": ["Feint"] },
+        { "slot": "D3", "use": ["@partyMit"] } ] },
+      { "id": "p3_vacuum_wave", "name": "Vacuum Wave (tank LB3)", "atS": 514, "hits": ["0xBB13"], "plan": [
+        { "slot": "MT", "carry": ["Reprisal"] },
+        { "slot": "WHM", "use": ["Plenary Indulgence"], "carry": ["Temperance"] },
+        { "slot": "AST", "use": ["Collective Unconscious"], "carry": ["Neutral Sect", "Sun Sign"] },
+        { "slot": "SCH", "carry": ["Sacred Soil", "Fey Illumination"] },
+        { "slot": "SGE", "carry": ["Kerachole", "Panhaima"] },
+        { "slot": "D2", "carry": ["Feint"] },
+        { "slot": "D3", "carry": ["@partyMit"] } ] },
+      { "id": "p3_cyclone", "name": "Cyclone", "atS": 518, "hits": ["0xBAF8"], "plan": [
+        { "slot": "MT", "carry": ["Reprisal"] },
+        { "slot": "WHM", "use": ["Divine Caress"], "carry": ["Plenary Indulgence"] },
+        { "slot": "AST", "carry": ["Collective Unconscious", "Sun Sign"] },
+        { "slot": "SCH", "carry": ["Sacred Soil", "Fey Illumination"] },
+        { "slot": "SGE", "carry": ["Kerachole", "Panhaima"] },
+        { "slot": "D2", "carry": ["Feint"] },
+        { "slot": "D3", "carry": ["@partyMit"] } ] },
+      { "id": "p3_earthquake", "name": "Earthquake", "atS": 559, "hits": ["0xC572"], "plan": [
+        { "slot": "MT", "use": ["@partyMit"], "jobs": ["GNB", "DRK"] },
+        { "slot": "AST", "use": ["Macrocosmos"] },
+        { "slot": "SCH", "use": ["Sacred Soil"] },
+        { "slot": "SGE", "use": ["Kerachole"] },
+        { "slot": "D1", "use": ["Feint"] } ] }
     ]
   },
+
+  "cleansePulses": [
+    {
+      "label": "Earth crystal pulse",
+      "pulseActions": ["0xBAFA"],
+      "vulnStatus": "Earth Resistance Down",
+      "windowS": 4,
+      "cleanses": [ { "status": "Accretion", "by": "heal" }, { "status": "Primordial Crust", "by": "lethal" } ],
+      "note": "Heal the healer's Accretion first, wait for Earth Resistance Down to fall off, then top off the DPS's; one Primordial Crust cleanse per black-hole set.",
+      "conf": "v FC log 09-27 #4: both Accretions healed to full by one Helios Conjunction 0.5s apart -> two pulses at once -> wipe"
+    }
+  ],
 
   "arrowPuzzle": {
     "label": "Tele-trouncing arrows",

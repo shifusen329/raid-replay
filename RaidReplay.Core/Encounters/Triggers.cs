@@ -285,6 +285,9 @@ public sealed class EncounterRun
 
         foreach (var m in enc.Def.Mechanics)
         {
+            // A mechanic tied to a phase only fires in it (the same ability can be reused later, e.g. P1's gaze setup in P3).
+            if (m.Phase != null && (phase < 0 || !string.Equals(phases[phase].Id, m.Phase, StringComparison.Ordinal)))
+                continue;
             if (m.Trigger.PullStart != true && Fires(m.Trigger, e))
             {
                 Marks.Add(new EncounterMark

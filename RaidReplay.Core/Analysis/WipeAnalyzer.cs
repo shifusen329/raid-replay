@@ -27,6 +27,8 @@ public static class WipeAnalyzer
         FindFailureActions(r, report);
         FindMechanicMisses(r, report, groups);
         FindArrowPuzzle(r, report);
+        FindBaitLandings(r, report);
+        FindCleansePulses(r, report);
         AttachMitigation(r, report);
 
         report.Incidents.Sort((a, b) => a.T != b.T ? a.T.CompareTo(b.T) : b.Severity.CompareTo(a.Severity));
@@ -104,17 +106,17 @@ public static class WipeAnalyzer
                     inc.Detail += " — raidwide; check HP/mitigation before it";
                 else if (category is AoeCategory.Tankbuster && !IsTank(d.Victim))
                     inc.Detail += " — tankbuster cleave on a non-tank (stand away from the tank/boss facing)";
-                var mits = r.Statuses.Where(s => s.Target == d.Victim && s.Active(kb.T) && s.Source is { IsPlayer: true })
+                var mits = r.Statuses.Where(s => s.Target == d.Victim && s.Active(kb.T) && IsFriendly(s.Source))
                             .Select(s => s.Name).Distinct().Take(6).ToList();
                 if (mits.Count > 0)
                     inc.Detail += $"; buffs: {string.Join(", ", mits)}";
-                var debuffs = r.Statuses.Where(s => s.Target == d.Victim && s.Active(kb.T) && s.Source is { IsPlayer: false })
+                var debuffs = r.Statuses.Where(s => s.Target == d.Victim && s.Active(kb.T) && !IsFriendly(s.Source))
                                .Select(s => s.Name).Distinct().Take(4).ToList();
                 if (debuffs.Count > 0)
                     inc.Detail += $"; debuffs: {string.Join(", ", debuffs)}";
 
                 // A vulnerability debuff from an earlier mistake is usually what made the hit lethal.
-                foreach (var vuln in r.Statuses.Where(s => s.Target == d.Victim && s.Active(kb.T) && s.Source is { IsPlayer: false } &&
+                foreach (var vuln in r.Statuses.Where(s => s.Target == d.Victim && s.Active(kb.T) && !IsFriendly(s.Source) &&
                                                           s.Name.Contains("Vulnerability Up", StringComparison.OrdinalIgnoreCase)))
                 {
                     var from = r.Actions.LastOrDefault(a => !a.Source.IsPlayer && Math.Abs(a.T - vuln.StartMs) <= 400 &&
@@ -123,7 +125,8 @@ public static class WipeAnalyzer
                     // avoidable hit is a mistake.
                     var fromAoe = from != null ? r.Aoes.FirstOrDefault(x => x.Action == from) : null;
                     var mistake = fromAoe?.Category is AoeCategory.Danger or AoeCategory.HiddenDanger ||
-                                  (fromAoe?.Category == AoeCategory.Tankbuster && !IsTank(d.Victim));
+                                  (fromAoe?.Category == AoeCategory.Tankbuster && !IsTank(d.Victim)) ||
+                                  (fromAoe?.Category == AoeCategory.Spread && SpreadOwner(r, fromAoe) is { } so && so != d.Victim);
                     if (!mistake)
                         break;
                     inc.Detail += $". Had {vuln.Name} from {from!.Name} at {FormatMs(from.T)} (avoidable) — that made this hit lethal";
@@ -560,21 +563,32 @@ public static class WipeAnalyzer
                 continue;
             var alive = r.Party.Where(p => ShapeValidator.IsAlive(r, p, g.T)).ToList();
 
-            // Avoidable damage (incl. tankbuster cleaves on non-tanks).
-            foreach (var a in g.Aoes.Where(a => a.Category is AoeCategory.Danger or AoeCategory.HiddenDanger or AoeCategory.Tankbuster &&
+            // Avoidable damage (incl. tankbuster cleaves on non-tanks, and someone else's spread). Players with a spread of
+            // their own at this moment are judged by the spread-overlap check instead.
+            var spreadOwners = g.Aoes.Where(a => a.Category == AoeCategory.Spread && a.Action != null).Select(a => SpreadOwner(r, a))
+                                .Where(o => o != null).ToHashSet();
+            foreach (var a in g.Aoes.Where(a => a.Category is AoeCategory.Danger or AoeCategory.HiddenDanger or AoeCategory.Tankbuster or AoeCategory.Spread &&
                                                 a.Action != null))
             {
+                // Proximity damage reaches everyone; only a big hit means standing too close.
+                var proximity = SoakDef(r, a)?.Proximity == true;
+                var owner = a.Category == AoeCategory.Spread ? SpreadOwner(r, a) : null;
                 foreach (var h in a.Action!.Hits)
                 {
                     if (!h.Target.IsPlayer || (h.Damage <= 0 && !h.InstantDeath && !h.Knockback))
                         continue;
+                    if (proximity && !h.InstantDeath && (h.MaxHp <= 0 || h.Damage < h.MaxHp * 0.4f))
+                        continue;
                     if (a.Category == AoeCategory.Tankbuster && (IsTank(h.Target) || h.Target == a.Action.PrimaryTarget || h.Target == a.Follow))
+                        continue;
+                    if (a.Category == AoeCategory.Spread && (owner == null || h.Target == owner || spreadOwners.Contains(h.Target)))
                         continue;
                     var inc = new Incident
                     {
                         Kind = IncidentKind.AvoidableHit,
                         T = a.ResolveMs,
-                        Title = a.Category == AoeCategory.Tankbuster ? $"{h.Target.Name} cleaved by {a.Label}" : $"{h.Target.Name} hit by {a.Label}",
+                        Title = a.Category == AoeCategory.Tankbuster ? $"{h.Target.Name} cleaved by {a.Label}" :
+                                a.Category == AoeCategory.Spread ? $"{h.Target.Name} hit by {owner!.Name}'s {a.Label}" : $"{h.Target.Name} hit by {a.Label}",
                         Detail = $"{h.Damage:N0} damage" + (h.MaxHp > 0 ? $" ({100.0 * h.Damage / h.MaxHp:0}% max HP)" : "") +
                                  (a.Category == AoeCategory.HiddenDanger ? " — the hidden (real) one" : ""),
                         Severity = 2,
@@ -628,7 +642,9 @@ public static class WipeAnalyzer
             var stacks = g.Aoes.Where(a => a.Category == AoeCategory.Stack && a.Action != null).ToList();
             var shortBlamed = FindShortStacks(r, report, stacks, alive);
 
-            // Missed stacks: alive players not hit by any stack of the moment.
+            // Missed stacks: alive players not hit by any party stack of the moment. Stacks with a soaker count (taken by a
+            // few players, e.g. role-group knockbacks or wind duos) are checked by FindShortStacks instead.
+            stacks = stacks.Where(a => a.Soakers <= 0).ToList();
             if (stacks.Count > 0)
             {
                 // Anyone involved in another part of this moment (hit by any AoE, holding/baiting one) had a different
@@ -819,6 +835,163 @@ public static class WipeAnalyzer
     }
 
     /// <summary>
+    /// Abilities that go to the farthest (or closest) player from the caster, e.g. a boss jump: when one lands on the party,
+    /// say who it went to and why — the intended baiter dead, or nobody far enough out.
+    /// </summary>
+    private static void FindBaitLandings(PullReplay r, WipeReport report)
+    {
+        foreach (var a in r.Aoes.Where(a => a.Action != null && a.Cast != null))
+        {
+            var def = SoakDef(r, a);
+            if (def?.Bait is not { } rule)
+                continue;
+            var heavy = a.Action!.Hits.Where(h => h.Target.IsPlayer && (h.InstantDeath || h.MaxHp > 0 && h.Damage >= h.MaxHp * 0.4f)).ToList();
+            if (heavy.Count < 2)
+                continue;
+
+            var t0 = a.Cast!.StartMs;
+            var caster = a.Source;
+            if (caster == null || !caster.Track.TrySample(t0, out var from, out _))
+                continue;
+            var alive = r.Party.Where(p => ShapeValidator.IsAlive(r, p, t0))
+                         .Select(p => (p, d: p.Track.TrySample(t0, out var pp, out _) ? Vector2.Distance(pp, from) : -1f))
+                         .Where(x => x.d >= 0).OrderByDescending(x => x.d).ToList();
+            if (alive.Count == 0)
+                continue;
+            var baiter = rule == "farthest" ? alive[0] : alive[^1];
+            var second = alive.Count > 1 ? (rule == "farthest" ? alive[1] : alive[^2]) : default;
+            var landing = a.Placement(a.ResolveMs).Origin;
+            var died = heavy.Where(h => r.Deaths.Any(d => d.Victim == h.Target && d.T >= a.ResolveMs - 200 && d.T <= a.ResolveMs + 5000)).Select(h => h.Target).ToList();
+            var dead = r.Party.Where(p => !ShapeValidator.IsAlive(r, p, t0)).ToList();
+
+            var detail = new StringBuilder();
+            detail.Append($"It goes to the {rule} player from {caster.Name} when the cast starts ({FormatMs(t0)}): that was {baiter.p.Name} at {baiter.d:0.0}y");
+            if (second.p != null)
+                detail.Append($" (next: {second.p.Name} at {second.d:0.0}y)");
+            detail.Append($". It landed at ({landing.X:0.0}, {landing.Y:0.0}) and hit {heavy.Count} players hard " +
+                          $"(up to {heavy.Max(h => h.Damage):N0})");
+            if (rule == "farthest")
+                detail.Append(" — someone has to run far out to bait it, away from the group");
+            if (dead.Count > 0)
+                detail.Append($". Dead at the time: {string.Join(", ", dead.Select(p => $"{p.Name} ({Core.GameData.Jobs.Abbrev(p.Job)})"))}");
+
+            var inc = new Incident
+            {
+                Kind = IncidentKind.MissedStack,
+                T = a.ResolveMs,
+                Title = $"{a.Label} landed on the party" + (died.Count > 0 ? $" — {died.Count} died" : ""),
+                Detail = detail.ToString(),
+                Severity = died.Count > 0 ? 3 : 2,
+                VerdictHint = "Bait",
+            };
+            inc.Players.Add(baiter.p);
+            inc.Players.AddRange(heavy.Select(h => h.Target).Where(p => p != baiter.p).Distinct());
+            inc.Aoes.Add(a);
+
+            // Where the baiter should have been: the arena edge straight away from the caster.
+            var center = Center(r);
+            var arenaR = r.Encounter?.Def.Arena?.Radius ?? 20;
+            var dir = baiter.p.Track.TrySample(t0, out var bp, out _) && Vector2.DistanceSquared(bp, from) > 0.01f
+                          ? Vector2.Normalize(bp - from)
+                          : Vector2.Normalize(center - from);
+            inc.Expected[baiter.p] = (center + (dir * (arenaR - 1.5f)), ExpectedSource.Assigned, $"far out to bait {a.Label}");
+            report.Incidents.Add(inc);
+        }
+    }
+
+    /// <summary>
+    /// Pulses fired by cleansing a debuff (e.g. the earth crystal): two cleanses inside the vulnerability window stack two
+    /// pulses and wipe the party. Names the cleanses that came too close together and what caused each.
+    /// </summary>
+    private static void FindCleansePulses(PullReplay r, WipeReport report)
+    {
+        var defs = r.Encounter?.Def.CleansePulses;
+        if (defs is not { Count: > 0 })
+            return;
+        foreach (var cp in defs)
+        {
+            var ids = cp.PulseActions.Select(x => x.Value).ToHashSet();
+            var pulses = r.Actions.Where(a => ids.Contains(a.ActionId) && a.Hits.Any(h => h.Target.IsPlayer)).OrderBy(a => a.T).ToList();
+            if (pulses.Count < 2)
+                continue;
+            var windowMs = (int)(cp.WindowS * 1000);
+
+            // Cleanses: a listed status coming off early (not running out), with what removed it.
+            var cleanses = new List<(int T, Actor Who, string Status, string How)>();
+            foreach (var c in cp.Cleanses)
+            {
+                foreach (var s in r.Statuses.Where(s => s.Target.IsPlayer && s.Name.StartsWith(c.Status, StringComparison.OrdinalIgnoreCase) &&
+                                                        s.EndMs < r.EndMs && (s.Duration <= 0 || s.EndMs < s.StartMs + (s.Duration * 1000) - 1500)))
+                {
+                    string how;
+                    if (c.By == "heal")
+                    {
+                        var heal = r.Actions.Where(a => a.T >= s.EndMs - 1500 && a.T <= s.EndMs + 200)
+                                    .SelectMany(a => a.Hits.Where(h => h.Target == s.Target && h.Heal > 0).Select(h => (a, h)))
+                                    .OrderBy(x => x.a.T).FirstOrDefault();
+                        how = heal.a != null ? $"healed to full by {heal.a.Source.Name}'s {heal.a.Name} at {FormatMs(heal.a.T)}" : "healed to full";
+                    }
+                    else
+                    {
+                        var hit = r.Actions.Where(a => a.T >= s.EndMs - 1500 && a.T <= s.EndMs + 200)
+                                   .SelectMany(a => a.Hits.Where(h => h.Target == s.Target && h.Damage > 0).Select(h => (a, h)))
+                                   .OrderByDescending(x => x.h.Damage).FirstOrDefault();
+                        how = hit.a != null ? $"took {hit.a.Name} ({hit.h.Damage:N0}) at {FormatMs(hit.a.T)}" : "took a lethal hit";
+                    }
+
+                    cleanses.Add((s.EndMs, s.Target, s.Name, how));
+                }
+            }
+
+            cleanses.Sort((x, y) => x.T.CompareTo(y.T));
+
+            // The first pulse that lands while an earlier one's vulnerability is still up.
+            for (var i = 1; i < pulses.Count; i++)
+            {
+                var prev = pulses.Take(i).Last(p => p.Source != pulses[i].Source || p.T < pulses[i].T);
+                if (pulses[i].T - prev.T > windowMs)
+                    continue;
+                var t1 = prev.T;
+                var t2 = pulses[i].T;
+                var involved = cleanses.Where(c => c.T >= t1 - 3000 && c.T <= t2 + 200).ToList();
+                var heavy = pulses[i].Hits.Where(h => h.Target.IsPlayer && h.MaxHp > 0 && h.Damage >= h.MaxHp * 0.5f).ToList();
+                var gap = (t2 - t1) / 1000f;
+                var inc = new Incident
+                {
+                    Kind = IncidentKind.FailureAction,
+                    T = t2,
+                    Title = $"{cp.Label}: two pulses {gap:0.0}s apart" + (heavy.Count > 0 ? $" — {heavy.Count} hit for {heavy.Max(h => h.Damage):N0}" : ""),
+                    Severity = 3,
+                    VerdictHint = "Double cleanse",
+                };
+                var detail = new StringBuilder();
+                detail.Append($"Each pulse leaves {cp.VulnStatus} for {cp.WindowS:0.#}s, so a second cleanse inside it is lethal. ");
+                if (involved.Count > 0)
+                {
+                    detail.Append("Cleansed together: " + string.Join("; ", involved.Take(3).Select(c => $"{c.Who.Name}'s {c.Status} at {FormatMs(c.T)} ({c.How})")) + ".");
+                    foreach (var c in involved.Take(3))
+                        inc.Players.Add(c.Who);
+                    var healer = involved.Select(c => c.How).FirstOrDefault(h => h.StartsWith("healed to full by ", StringComparison.Ordinal));
+                    var healerName = healer?["healed to full by ".Length..].Split("'s")[0];
+                    var healerActor = r.Party.FirstOrDefault(p => p.Name == healerName);
+                    if (healerActor != null && !inc.Players.Contains(healerActor))
+                        inc.Players.Insert(0, healerActor);
+                }
+                else
+                {
+                    detail.Append("No early cleanse found for the second pulse.");
+                }
+
+                if (cp.Note != null)
+                    detail.Append(' ').Append(cp.Note);
+                inc.Detail = detail.ToString();
+                report.Incidents.Add(inc);
+                break;
+            }
+        }
+    }
+
+    /// <summary>
     /// A chain cut short because it landed on an arrow another Confused player had already used: each Confused player
     /// should step in at a side's middle arrow and own the stretch after it, so whoever stepped in elsewhere is off.
     /// </summary>
@@ -900,8 +1073,10 @@ public static class WipeAnalyzer
             report.Incidents.Add(inc);
         }
 
-        // Players inside two stacks at once take both (e.g. both confetti knockbacks).
-        var doubled = stacks.SelectMany(a => a.Action!.Hits.Where(h => h.Target.IsPlayer && h.Target != (a.ExcludeActor ?? a.Follow)).Select(h => (h.Target, a)))
+        // Players inside two stacks at once take both (e.g. both confetti knockbacks). Only for stacks assigned to a role
+        // group: others may be meant to overlap (e.g. everyone soaking all wind stacks together).
+        var doubled = stacks.Where(a => SoakDef(r, a)?.SoakGroup != null)
+                            .SelectMany(a => a.Action!.Hits.Where(h => h.Target.IsPlayer && h.Target != (a.ExcludeActor ?? a.Follow)).Select(h => (h.Target, a)))
                             .GroupBy(x => x.Target).Where(x => x.Select(y => y.a).Distinct().Count() > 1).ToList();
         if (doubled.Count > 0)
         {
@@ -925,6 +1100,18 @@ public static class WipeAnalyzer
         }
 
         return blamed;
+    }
+
+    /// <summary>Whose spread this is: the player it follows, or the player standing on its centre when it went off.</summary>
+    private static Actor? SpreadOwner(PullReplay r, AoeInstance a)
+    {
+        if (a.Follow is { IsPlayer: true } f)
+            return f;
+        if (a.ExcludeActor is { IsPlayer: true } x)
+            return x;
+        var origin = a.Placement(a.ResolveMs).Origin;
+        var nearest = r.Party.Select(p => (p, d: Dist(p, a.ResolveMs, origin))).Where(x => x.d >= 0).OrderBy(x => x.d).FirstOrDefault();
+        return nearest.p != null && nearest.d <= 2f ? nearest.p : null;
     }
 
     private static AbilityDef? SoakDef(PullReplay r, AoeInstance a) =>
@@ -1118,6 +1305,8 @@ public static class WipeAnalyzer
             "Arrow placement" => "Arrow placement failure",
             "Arrows used early" => "Arrows used before the confusion",
             "Confused positioning" => "Confused player reached an ally",
+            "Bait" => "Bait landed on the party",
+            "Double cleanse" => "Two cleanses inside the vulnerability window",
             _ => null,
         } ?? root?.Kind switch
         {
@@ -1239,6 +1428,9 @@ public static class WipeAnalyzer
     }
 
     private static bool IsTank(Actor a) => GameData.Jobs.Get(a.Job)?.Role == 1;
+
+    /// <summary>A status from a player or their pet (fairy, seraph, carbuncle) is friendly; anything else is a debuff.</summary>
+    private static bool IsFriendly(Actor? source) => source is { IsPlayer: true } or { Kind: ActorKind.Pet };
 
     private static float Dist(Actor p, int t, Vector2 to) =>
         p.Track.TrySample(t, out var pos, out _) ? Vector2.Distance(pos, to) : -1;
