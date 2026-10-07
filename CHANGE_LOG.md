@@ -2,6 +2,45 @@
 
 Notable changes to Raid Replay. Versions match the plugin version shown in `/xlplugins`.
 
+## [0.0.4] - 2026-10-07
+
+### Added
+
+- **`ATTRIBUTION.md`:** the rules the report follows to pick the root cause and decide who is at fault, as two flowcharts.
+- **"Out of position" verdict.** When another player's targeted AoE hits or kills someone (a tether rock, a Wave Cannon line, a spread), the report judges both players against their usual spots:
+  - if the AoE's owner was off their spot, the owner is at fault;
+  - otherwise, the player hit is at fault if they were off theirs;
+  - a player standing with a group counts as on their spot.
+
+  For example, a rock carried into the stacked supports now blames the rock's holder, not the tank who died.
+- **Wave Cannon clips are reported.** A Wave Cannon line or a tether rock that hits anyone besides its own target is now an incident.
+- **"Incorrect baiting" verdict for Past's/Future's End.** The strategy has everyone bait at max melee of Kefka. When a bait hits someone besides its target and positions don't settle who erred, whichever of the two was farther from max melee is at fault. A bait that clips another player is reported even when nobody dies.
+- **Esc closes the after-action report,** even while the game has the focus. That press doesn't also open the game's system menu.
+- **"Copy recap" on each incident in the after-action report** (the root cause and every expanded incident). It copies the incident as text: what happened, who is at fault, where they should have been, and for a death, the damage and healing taken in the 10 seconds before it.
+- **Encounter packs** have new fields:
+  - `soakOrder`: towers two groups soak in a fixed rotation;
+  - `soakGroup: "role"` on towers that drop on a player;
+  - `baitAt: "maxMelee"`: baits taken at max melee.
+
+### Changed
+
+- **Forsaken towers (P2) follow the soak order.** Group A is the first two Spell's Trouble stacks plus their melee/ranged partners. It soaks sets 1, 2, 3 and 8; group B soaks sets 4–7.
+  - A tower short of players blames the set's group member who wasn't in a tower, or who doubled up in the other tower.
+  - It used to blame whoever stood nearest, often a player from the other group.
+  - Group members who were already dead are reported, and the wipe is traced to their deaths.
+- **Wave Cannon towers follow the strategy.** Each tower is soaked by the role-mates of the player it dropped on who weren't targeted by a line. If those players were already dead, the report says so and traces the wipe to their deaths, instead of blaming whoever stood nearest. A player who doubled up in another tower counts as free to take the empty one.
+
+### Fixed
+
+- **Jumping off to end a lost pull was counted as a reset.** After a missed tower gives the whole party Damage Down, players who kill themselves to wipe are now "wiped on purpose": informational, and no part of what lost the pull.
+- **"Damage Down resets overwhelmed recovery" is no longer a verdict.** The report shows the real root: the missed tower, or the avoidable hit that gave the Damage Down. Several resets are still noted on the root.
+- **Shielded hits that gave Damage Down were ignored.** A hit a shield absorbed now counts as avoidable damage when it left a debuff, so a reset traces back to it.
+- **Wrong Damage Down source:** the source of a Damage Down could be credited to a heal that landed at the same moment (e.g. Liturgy of the Bell). It is now the enemy hit that gave it.
+- **Root cause too late:** a hit at the same moment as the collapse could be picked as its root cause; a cause now has to come before what it explains.
+- **Unrelated root cause:** a failure that named nobody could adopt any nearby hit as its root cause; it no longer does.
+- **AAR tables:** text in the expanded incident tables ("Where everyone was", mitigation) was cut off at the column edge. It now wraps.
+- **Wave Cannon lines** could be drawn pointing the wrong way. In some logs the line's logged target is the statue itself; the line now uses its real direction when it fires.
+
 ## [0.0.3] - 2026-10-06
 
 ### Added

@@ -289,6 +289,19 @@ public sealed class AbilityDef
     /// </summary>
     public bool OnlyTarget { get; set; }
 
+    /// <summary>
+    /// For towers that two groups soak in a fixed rotation (e.g. P2 Forsaken towers, "AAABBBBA"): which group soaks each
+    /// set, so an empty tower blames that group's player who wasn't in a tower.
+    /// </summary>
+    public SoakOrderDef? SoakOrder { get; set; }
+
+    /// <summary>
+    /// Where the strategy baits it: "maxMelee" = every player at max melee of the boss (hitbox + 3y). When it hits
+    /// someone besides its target and positions alone don't decide who erred, whoever was farther off that ring baited
+    /// it incorrectly.
+    /// </summary>
+    public string? BaitAt { get; set; }
+
     public List<HexId>? ResolvesWith { get; set; }
     public bool ExcludesHolder { get; set; }
     public bool Knockback { get; set; }
@@ -425,6 +438,27 @@ public sealed class HeadMarkerDef
     public string? Color { get; set; }
     public bool OnBoss { get; set; }
     public float DurationS { get; set; } = 5;
+    public string? Conf { get; set; }
+}
+
+/// <summary>
+/// Two groups soak a tower ability's sets in a fixed order. Group A is the first holders of a head marker plus their
+/// partners; group B is everyone else.
+/// </summary>
+public sealed class SoakOrderDef
+{
+    /// <summary>Head marker whose first holders, with their partners, form group A (e.g. the first Spell's Trouble stacks).</summary>
+    public HexId GroupMarker { get; set; }
+
+    /// <summary>Party-slot pairs (MT, OT, H1, H2, M1, M2, R1, R2); a marker holder brings their partner into group A.</summary>
+    public List<List<string>> Partners { get; set; } = [];
+
+    /// <summary>Which group soaks each set, in order, e.g. "AAABBBBA".</summary>
+    public string Order { get; set; } = string.Empty;
+
+    /// <summary>Towers resolving within this many seconds of each other form one set.</summary>
+    public float SetGapS { get; set; } = 3;
+
     public string? Conf { get; set; }
 }
 

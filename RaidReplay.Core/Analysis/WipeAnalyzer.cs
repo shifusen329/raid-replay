@@ -23,7 +23,7 @@ public static class WipeAnalyzer
         report.Slots = PartySlots.Assign(r);
         report.Mitigation = MitigationChecker.Check(r, report.Slots, data);
 
-        FindDeaths(r, report);
+        FindDeaths(r, report, groups, profile);
         FindFailureActions(r, report);
         FindMechanicMisses(r, report, groups, profile);
         FindArrowPuzzle(r, report);
@@ -49,7 +49,7 @@ public static class WipeAnalyzer
 
     // ---- incident detection --------------------------------------------------------------------------------
 
-    private static void FindDeaths(PullReplay r, WipeReport report)
+    private static void FindDeaths(PullReplay r, WipeReport report, List<MechanicGroup> groups, PositionProfile? profile)
     {
         foreach (var d in r.Deaths)
         {
@@ -133,6 +133,18 @@ public static class WipeAnalyzer
                     inc.VerdictHint = "Vulnerability";
                     break;
                 }
+
+                // Killed by another player's targeted AoE (a tether rock, a bait line, a spread): whoever was off their
+                // spot is at fault, which need not be the player who died.
+                foreach (var a in burst.Select(h => r.Aoes.FirstOrDefault(x => x.Action == h.Action)).Distinct())
+                {
+                    if (a == null || OwnedBy(r, a) is not { } owner || owner == d.Victim ||
+                        JudgeOwned(r, a, owner, d.Victim, groups, profile) is not { } fault)
+                        continue;
+                    ApplyOwnedFault(inc, fault, owner, d.Victim, a);
+                    inc.Title = $"{d.Victim.Name} died to {owner.Name}'s {a.Label}";
+                    break;
+                }
             }
             else
             {
@@ -191,13 +203,35 @@ public static class WipeAnalyzer
         if (how == null)
             return;
 
-        var cause = r.Actions.LastOrDefault(a => !a.Source.IsPlayer && Math.Abs(a.T - dd.StartMs) <= 500 && a.Hits.Any(h => h.Target == d.Victim));
+        // What applied it: an enemy action that hit them just before the debuff landed (not a heal from the party).
+        // Among several enemy hits at once, a mistake (a danger AoE or a failure) is what gives Damage Down.
+        var candidates = r.Actions.Where(a => !IsFriendly(a.Source) && a.T <= dd.StartMs + 200 && a.T >= dd.StartMs - 1500 &&
+                                              a.Hits.Any(h => h.Target == d.Victim)).ToList();
+        var cause = candidates.LastOrDefault(a => r.Aoes.Any(x => x.Action == a && x.Category is AoeCategory.Danger or AoeCategory.HiddenDanger or AoeCategory.Failure) ||
+                                                  r.Encounter?.FailureActions.Contains(a.ActionId) == true)
+                    ?? candidates.LastOrDefault();
+        var from = cause != null ? $"{cause.Name} at {FormatMs(cause.T)}" : FormatMs(dd.StartMs);
         inc.Intentional = true;
         inc.Severity = 1;
         inc.VerdictHint = null;
         inc.DamageDownAt = cause?.T ?? dd.StartMs;
+
+        // Most of the party got the same Damage Down and nobody raised them before the end: the pull was lost and they
+        // ended it. That is no reset.
+        var sameDd = r.Party.Count(p => r.Statuses.Any(s => s.Target == p && s.Source is not { IsPlayer: true } &&
+                                                            s.Name.Equals("Damage Down", StringComparison.OrdinalIgnoreCase) &&
+                                                            Math.Abs(s.StartMs - dd.StartMs) <= 2000));
+        var raisedInPull = d.RaisedMs >= 0 && d.RaisedMs <= r.EndMs;
+        if (!raisedInPull && sameDd >= 5)
+        {
+            inc.DeliberateWipe = true;
+            inc.Title = $"{d.Victim.Name} wiped on purpose: {how}";
+            inc.Detail = $"Damage Down on {sameDd} players from {from}; the pull was lost, so they ended it";
+            return;
+        }
+
         inc.Title = $"{d.Victim.Name} reset Damage Down: {how}";
-        inc.Detail = $"Damage Down (−90% damage dealt for 2 min) from {(cause != null ? $"{cause.Name} at {FormatMs(cause.T)}" : $"{FormatMs(dd.StartMs)}")}; " +
+        inc.Detail = $"Damage Down (−90% damage dealt for 2 min) from {from}; " +
                      $"died on purpose {(d.T - dd.StartMs) / 1000f:0.0}s later to trade it for Weakness (−25% for 1 min) — {RaiseInfo(r, d)}";
     }
 
@@ -585,13 +619,16 @@ public static class WipeAnalyzer
             {
                 // Proximity damage reaches everyone; only a big hit means standing too close.
                 var proximity = SoakDef(r, a)?.Proximity == true;
-                var owner = a.Category == AoeCategory.Spread ? SpreadOwner(r, a) :
-                            a.Category == AoeCategory.Bait ? a.Action!.PrimaryTarget ?? a.Follow : null;
+                var owner = a.Category is AoeCategory.Spread or AoeCategory.Bait ? OwnedBy(r, a) : null;
                 if (a.Category == AoeCategory.Bait && owner == null)
                     continue;
                 foreach (var h in a.Action!.Hits)
                 {
-                    if (!h.Target.IsPlayer || (h.Damage <= 0 && !h.InstantDeath && !h.Knockback))
+                    // A hit a shield absorbed still counts when it left a debuff behind (e.g. Damage Down).
+                    var debuff = h.Damage <= 0 && !h.InstantDeath && !h.Knockback
+                                     ? r.Statuses.FirstOrDefault(s => s.Target == h.Target && !IsFriendly(s.Source) && s.StartMs >= h.T - 200 && s.StartMs <= h.T + 1000)
+                                     : null;
+                    if (!h.Target.IsPlayer || (h.Damage <= 0 && !h.InstantDeath && !h.Knockback && debuff == null))
                         continue;
                     if (proximity && !h.InstantDeath && (h.MaxHp <= 0 || h.Damage < h.MaxHp * 0.4f))
                         continue;
@@ -607,12 +644,18 @@ public static class WipeAnalyzer
                         T = a.ResolveMs,
                         Title = a.Category == AoeCategory.Tankbuster ? $"{h.Target.Name} cleaved by {a.Label}" :
                                 a.Category is AoeCategory.Spread or AoeCategory.Bait ? $"{h.Target.Name} hit by {owner!.Name}'s {a.Label}" : $"{h.Target.Name} hit by {a.Label}",
-                        Detail = $"{h.Damage:N0} damage" + (h.MaxHp > 0 ? $" ({100.0 * h.Damage / h.MaxHp:0}% max HP)" : "") +
+                        Detail = (debuff != null ? $"No damage (absorbed by a shield), but it gave {debuff.Name}" :
+                                     $"{h.Damage:N0} damage" + (h.MaxHp > 0 ? $" ({100.0 * h.Damage / h.MaxHp:0}% max HP)" : "")) +
                                  (a.Category == AoeCategory.HiddenDanger ? " — the hidden (real) one" : ""),
                         Severity = 2,
+                        Victim = h.Target,
                     };
                     inc.Players.Add(h.Target);
                     inc.Aoes.Add(a);
+
+                    // Another player's AoE: whoever was off their spot is at fault.
+                    if (owner != null && JudgeOwned(r, a, owner, h.Target, groups, profile) is { } fault)
+                        ApplyOwnedFault(inc, fault, owner, h.Target, a);
                     report.Incidents.Add(inc);
                 }
             }
@@ -647,7 +690,54 @@ public static class WipeAnalyzer
                 // players who usually stand in this soak at this moment in good pulls; otherwise the nearest free players.
                 var needed = Math.Max(1, a.Soakers - soakers.Count);
                 var missing = new List<(Actor P, float D, string Why)>();
-                if (profile != null)
+                var deadMates = new List<Actor>();
+
+                // Towers dropped on players (e.g. by Wave Cannon lines) are soaked by the dropper's role-mates who dropped
+                // none (pack soakGroup "role"). A role-mate who was already dead is reported, never replaced by a bystander.
+                // Towers two groups soak in a fixed rotation (pack soakOrder, e.g. AAABBBBA): the set's group members who
+                // weren't in any of its towers are the ones missing.
+                var rotation = SoakRotation(r, report, a);
+                var roleSoak = rotation == null && SoakDef(r, a)?.SoakGroup == "role" && Dropper(r, a) is not null;
+                if (rotation is var (group, set, members))
+                {
+                    var setSoakers = g.Aoes.Where(x => x.Category == AoeCategory.Tower && x.ActionId == a.ActionId && x.Action != null)
+                                      .SelectMany(x => x.Action!.Hits).Where(h => h.Target.IsPlayer).Select(h => h.Target).ToHashSet();
+                    deadMates = members.Where(p => !alive.Contains(p)).ToList();
+                    needed = Math.Max(1, cluster.Sum(x => Math.Max(1, x.Soakers)) - soakers.Count);
+                    missing = members.Where(p => alive.Contains(p) && !setSoakers.Contains(p))
+                                     .Select(p => (p, d: Dist(p, a.ResolveMs, origin), why: $"group {group} soaks set {set}, wasn't in a tower"))
+                                     .OrderBy(x => x.d).Take(needed).ToList();
+
+                    // Nobody from the group was absent: one of them doubled up in the set's other tower instead.
+                    if (missing.Count < needed)
+                    {
+                        var doubled = g.Aoes.Where(x => x.Category == AoeCategory.Tower && x.ActionId == a.ActionId && x.Action != null && !cluster.Contains(x))
+                                       .Select(x => x.Action!.Hits.Where(h => h.Target.IsPlayer).Select(h => h.Target).Distinct().ToList())
+                                       .Where(s => s.Count > Math.Max(1, a.Soakers)).SelectMany(s => s)
+                                       .Where(p => members.Contains(p) && missing.All(m => m.P != p));
+                        missing.AddRange(doubled.Select(p => (p, d: Dist(p, a.ResolveMs, origin), why: $"group {group} soaks set {set}, doubled up in the other tower"))
+                                                .OrderBy(x => x.d).Take(needed - missing.Count));
+                    }
+                }
+                else if (roleSoak)
+                {
+                    var dropper = Dropper(r, a)!;
+                    var support = StackPositions.IsSupport(dropper);
+                    var towers = g.Aoes.Where(x => x.Category == AoeCategory.Tower && x.ActionId == a.ActionId).ToList();
+                    var droppers = towers.Select(x => Dropper(r, x)).Where(p => p != null).ToHashSet();
+
+                    // Soakers of another tower that needed them are busy; a tower with extra soakers had one to spare.
+                    var busy = towers.Where(x => !cluster.Contains(x) && x.Action != null)
+                                     .Select(x => x.Action!.Hits.Where(h => h.Target.IsPlayer).Select(h => h.Target).Distinct().ToList())
+                                     .Where(s => s.Count <= Math.Max(1, a.Soakers)).SelectMany(s => s).ToHashSet();
+                    var mates = r.Party.Where(p => !droppers.Contains(p) && StackPositions.IsSupport(p) == support).ToList();
+                    deadMates = mates.Where(p => !alive.Contains(p)).ToList();
+                    needed = Math.Max(1, cluster.Sum(x => Math.Max(1, x.Soakers)) - soakers.Count);
+                    missing = mates.Where(p => alive.Contains(p) && !busy.Contains(p) && !soakers.Contains(p))
+                                   .Select(p => (p, d: Dist(p, a.ResolveMs, origin), why: $"{(support ? "supports" : "DPS")} soak {dropper.Name}'s"))
+                                   .OrderBy(x => x.d).Take(needed).ToList();
+                }
+                else if (profile != null)
                 {
                     foreach (var p in alive.Where(p => !soakers.Contains(p)))
                     {
@@ -659,11 +749,23 @@ public static class WipeAnalyzer
                     missing = missing.OrderBy(x => x.D).Take(needed).ToList();
                 }
 
-                if (missing.Count == 0)
+                if (missing.Count == 0 && !roleSoak && rotation == null)
                 {
                     var busy = BusySoakers(g);
                     missing = alive.Where(p => !busy.Contains(p) && !soakers.Contains(p)).Select(p => (p, d: Dist(p, a.ResolveMs, origin), why: "nearest free player"))
                                    .Where(x => x.d >= 0).OrderBy(x => x.d).Take(needed).ToList();
+                }
+
+                if (deadMates.Count > 0)
+                {
+                    var how = deadMates.Select(p => r.Deaths.LastOrDefault(d => d.Victim == p && d.T <= a.ResolveMs) is { } d
+                                                        ? $"{p.Name} ({(d.Cause.StartsWith("Fell", StringComparison.Ordinal) ? "fell off" : "died")} at {FormatMs(d.T)})"
+                                                        : p.Name);
+                    detail.Append($"Its soakers were already dead: {string.Join(", ", how)}. ");
+
+                    // The tower failed because of those deaths: the root cause is traced through them.
+                    inc.Causes.AddRange(report.Incidents.Where(i => i.Kind is IncidentKind.Death or IncidentKind.FellOff && i.Death != null &&
+                                                                    deadMates.Contains(i.Death.Victim) && i.T <= a.ResolveMs));
                 }
 
                 if (missing.Count > 0)
@@ -672,7 +774,7 @@ public static class WipeAnalyzer
                     foreach (var (p, _, _) in missing)
                     {
                         inc.Players.Add(p);
-                        inc.Expected[p] = (origin, ExpectedSource.Soak, $"needed in the {a.Label}");
+                        inc.Expected[p] = (origin, ExpectedSource.Soak, $"needed in {(a.Label.StartsWith("the ", StringComparison.OrdinalIgnoreCase) ? "" : "the ")}{a.Label}");
                     }
                 }
 
@@ -1185,6 +1287,201 @@ public static class WipeAnalyzer
         return nearest.p != null && nearest.d <= 2f ? nearest.p : null;
     }
 
+    /// <summary>
+    /// The player an AoE was aimed at or carried by (a tether rock, a bait line, a spread), if any. Shared AoEs (stacks,
+    /// towers), tankbusters and raidwides have no owner in this sense.
+    /// </summary>
+    private static Actor? OwnedBy(PullReplay r, AoeInstance a)
+    {
+        if (a.Action == null || a.Category is AoeCategory.Stack or AoeCategory.Tower or AoeCategory.Tankbuster or AoeCategory.Raidwide)
+            return null;
+        if (a.Category == AoeCategory.Spread)
+            return SpreadOwner(r, a);
+        if (a.Follow is { IsPlayer: true } f)
+            return f;
+        if (a.Category != AoeCategory.Bait)
+            return null;
+        if (a.Action.AnimationTarget is { IsPlayer: true } at)
+            return at;
+
+        // A line or cone fired from its caster at a player: the player hit nearest its axis is the one it was aimed at.
+        var hit = a.Action.Hits.Where(h => h.Target.IsPlayer).Select(h => h.Target).Distinct().ToList();
+        if (hit.Count <= 1 || a.Shape.Type is not (ShapeType.Rect or ShapeType.Cone))
+            return hit.FirstOrDefault() ?? a.Action.PrimaryTarget;
+        var (o, heading) = a.Placement(a.ResolveMs);
+        var dir = new Vector2(MathF.Sin(heading), MathF.Cos(heading));
+        return hit.MinBy(p => p.Track.TrySample(a.ResolveMs, out var pos, out _)
+                                  ? MathF.Abs((dir.X * (pos.Y - o.Y)) - (dir.Y * (pos.X - o.X)))
+                                  : float.MaxValue);
+    }
+
+    /// <summary>
+    /// For towers with a soak rotation (pack soakOrder): which group soaks the set this tower belongs to, the set's
+    /// number, and that group's players. Group A is the first holders of the group marker plus their partners.
+    /// </summary>
+    private static (char Group, int Set, List<Actor> Members)? SoakRotation(PullReplay r, WipeReport report, AoeInstance tower)
+    {
+        if (SoakDef(r, tower)?.SoakOrder is not { Order.Length: > 0 } so)
+            return null;
+
+        // Sets: this ability's towers, split wherever more than SetGapS passes between two of them.
+        var set = 0;
+        int? last = null;
+        foreach (var x in r.Aoes.Where(x => x.ActionId == tower.ActionId && x.Category == AoeCategory.Tower && x.Action != null)
+                              .OrderBy(x => x.ResolveMs))
+        {
+            if (last != null && x.ResolveMs - last > so.SetGapS * 1000)
+                set++;
+            last = x.ResolveMs;
+            if (x == tower)
+                break;
+        }
+
+        if (set >= so.Order.Length)
+            return null;
+        var marks = r.HeadMarkers.Where(m => m.MarkerId == so.GroupMarker.Value && m.Target.IsPlayer && m.T <= tower.ResolveMs).OrderBy(m => m.T).ToList();
+        if (marks.Count == 0)
+            return null;
+        var groupA = marks.Where(m => m.T - marks[0].T <= 1000).Select(m => m.Target).ToHashSet();
+        foreach (var holder in groupA.ToList())
+        {
+            if (!report.Slots.TryGetValue(holder, out var slot))
+                continue;
+            foreach (var partner in so.Partners.Where(p => p.Contains(slot)).SelectMany(p => p))
+            {
+                if (report.Slots.FirstOrDefault(kv => kv.Value == partner).Key is { } p)
+                    groupA.Add(p);
+            }
+        }
+
+        var group = so.Order[set];
+        var members = r.Party.Where(p => groupA.Contains(p) == (group == 'A')).ToList();
+        return (group, set + 1, members);
+    }
+
+    /// <summary>The player standing on a tower's spot when it appeared (e.g. the target of the line that dropped it).</summary>
+    private static Actor? Dropper(PullReplay r, AoeInstance tower)
+    {
+        var (origin, _) = tower.Placement(tower.ResolveMs);
+        var at = tower.StartMs < tower.ResolveMs ? tower.StartMs : tower.ResolveMs - 3000;
+        return r.Party.Select(p => (p, d: Dist(p, at, origin))).Where(x => x.d is >= 0 and <= 2.5f).OrderBy(x => x.d)
+                .Select(x => x.p).FirstOrDefault();
+    }
+
+    private static void ApplyOwnedFault(Incident inc, OwnedFault fault, Actor owner, Actor victim, AoeInstance a)
+    {
+        inc.Victim = victim;
+        inc.Players.Clear();
+        inc.Players.Add(fault.Culprit);
+        inc.Detail += (inc.Detail.Length > 0 ? ". " : "") + $"{owner.Name}'s {a.Label} hit {victim.Name}: {fault.Why}";
+        if (fault.Spot is { } spot)
+            inc.Expected[fault.Culprit] = (spot, fault.Source,
+                                           fault.Source == ExpectedSource.Learned ? $"usual spot, {fault.Pulls} good pulls" : $"max melee for {a.Label}");
+        inc.VerdictHint = fault.Hint;
+    }
+
+    /// <summary>Who is at fault when one player's AoE hits another, and where they should have been (if known).</summary>
+    private readonly record struct OwnedFault(Actor Culprit, Vector2? Spot, float Off, int Pulls, string Why,
+                                              string Hint = "Out of position", ExpectedSource Source = ExpectedSource.Learned);
+
+    /// <summary>
+    /// One player's AoE hit another: the owner is at fault if they were off their usual spot; otherwise the player hit,
+    /// if they were. A player hit while on their spot means the owner brought it to them. Two players both on their spots
+    /// are only hit together by design (stacks and absorbs, judged elsewhere), so that gives no verdict.
+    /// </summary>
+    private static OwnedFault? JudgeOwned(PullReplay r, AoeInstance a, Actor owner, Actor victim, List<MechanicGroup> groups,
+                                          PositionProfile? profile)
+    {
+        var g = groups.FirstOrDefault(x => x.Aoes.Contains(a)) ?? groups.Where(x => Math.Abs(x.T - a.ResolveMs) <= 1500)
+                                                                         .MinBy(x => Math.Abs(x.T - a.ResolveMs));
+
+        // Usual spots come from the position profile; without one, only the group check below can decide.
+        (bool Known, bool Off, Vector2 Spot, float Dist, int Pulls) Judge(Actor p)
+        {
+            if (profile == null || g == null)
+                return (false, false, default, 0, 0);
+            var learned = profile.Query(g.Phase, g.PhaseSecond, g.Variant, p.Name, p.Job, r.Summary.Key);
+            if (learned is not { Count: >= 3 } l || !p.Track.TrySample(a.ResolveMs, out var pos, out _))
+                return (false, false, default, 0, 0);
+            var d = Vector2.Distance(pos, l.Pos);
+            return (true, d > Math.Max(2.5f, l.Spread * 2.5f), l.Pos, d, l.Count);
+        }
+
+        var o = Judge(owner);
+        var v = Judge(victim);
+        OwnedFault Owner() => new(owner, o.Known ? o.Spot : null, o.Dist, o.Pulls,
+                                  o.Known ? $"{owner.Name} was {o.Dist:0.0}y off their usual spot ({o.Pulls} good pulls)" : $"{owner.Name} brought it to them");
+        OwnedFault Victim() => new(victim, v.Known ? v.Spot : null, v.Dist, v.Pulls,
+                                   v.Known ? $"{victim.Name} was {v.Dist:0.0}y off their usual spot ({v.Pulls} good pulls)" : $"{victim.Name} walked into it");
+
+        if (o.Known && o.Off)
+            return Owner();
+        if (v.Known && v.Off)
+            return Victim();
+
+        // Both near their spots: it still only hits someone else when somebody was out of place, so the one farther off is.
+        if (o.Known && v.Known)
+            return Math.Max(o.Dist, v.Dist) < 2f ? null : o.Dist >= v.Dist ? Owner() : Victim();
+
+        // Only one side has a learned spot (or neither): a player on their spot, or standing with a group (a stack spot),
+        // was where they belonged, so the other side brought the AoE there.
+        if (!o.Known && (v.Known || InGroup(r, victim, owner, a.ResolveMs)))
+        {
+            var why = v.Known ? $"{victim.Name} was on their usual spot ({v.Pulls} good pulls)" : $"{victim.Name} was standing with the group";
+            return Owner() with { Why = $"{why}, so {owner.Name} brought it to them" };
+        }
+
+        if (!v.Known && o.Known)
+            return Victim() with { Why = $"{owner.Name} was on their usual spot ({o.Pulls} good pulls), so {victim.Name} walked into it" };
+
+        // Baited at max melee (e.g. Past's/Future's End): positions alone didn't decide, so whoever was farther off the
+        // max-melee ring baited it incorrectly.
+        if (SoakDef(r, a)?.BaitAt == "maxMelee" && MaxMeleeRing(r, a) is var (center, ring))
+        {
+            (float Off, float Dist, Vector2 Spot)? Ring(Actor p)
+            {
+                if (!p.Track.TrySample(a.ResolveMs, out var pos, out _))
+                    return null;
+                var d = Vector2.Distance(pos, center);
+                var dir = d > 0.01f ? (pos - center) / d : new Vector2(0, -1);
+                return (MathF.Abs(d - ring), d, center + (dir * ring));
+            }
+
+            if (Ring(owner) is { } ro && Ring(victim) is { } rv && Math.Max(ro.Off, rv.Off) >= 1f)
+            {
+                var (who, x) = ro.Off >= rv.Off ? (owner, ro) : (victim, rv);
+                var side = x.Dist < ring ? "inside" : "outside";
+                return new OwnedFault(who, x.Spot, x.Off, 0,
+                                      $"{who.Name} baited it incorrectly: {x.Dist:0.0}y from the boss's centre, {x.Off:0.0}y {side} max melee ({ring:0.0}y)",
+                                      "Incorrect baiting", ExpectedSource.Assigned);
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>The boss an AoE was baited from, and its max-melee ring (hitbox + 3y).</summary>
+    private static (Vector2 Center, float Radius)? MaxMeleeRing(PullReplay r, AoeInstance a)
+    {
+        var (origin, _) = a.Placement(a.ResolveMs);
+        var boss = a.Source is { Kind: ActorKind.Boss } source
+                       ? source
+                       : r.Actors.Where(x => x.Kind == ActorKind.Boss && x.IsPresent(a.ResolveMs) && !x.IsHidden(a.ResolveMs))
+                          .MinBy(x => x.Track.TrySample(a.ResolveMs, out var p, out _) ? Vector2.Distance(p, origin) : float.MaxValue);
+        if (boss == null || !boss.Track.TrySample(a.ResolveMs, out var center, out _))
+            return null;
+        return (center, boss.Radius + 3f);
+    }
+
+    /// <summary>Whether a player stood with at least two others (not counting <paramref name="except"/>) within 3.5y.</summary>
+    private static bool InGroup(PullReplay r, Actor p, Actor except, int t)
+    {
+        if (!p.Track.TrySample(t, out var pos, out _))
+            return false;
+        return r.Party.Count(q => q != p && q != except && ShapeValidator.IsAlive(r, q, t - 100) &&
+                                  q.Track.TrySample(t, out var qp, out _) && Vector2.Distance(pos, qp) <= 3.5f) >= 2;
+    }
+
     private static AbilityDef? SoakDef(PullReplay r, AoeInstance a) =>
         r.Encounter?.AbilityFor(a.Action?.ActionId ?? a.ActionId, a.Action?.Name);
 
@@ -1291,7 +1588,7 @@ public static class WipeAnalyzer
         var hits = report.Incidents.Where(i => i.Kind == IncidentKind.AvoidableHit).ToList();
         foreach (var death in report.Incidents.Where(i => i.Kind == IncidentKind.Death && i.Death?.KillingBlow != null).ToList())
         {
-            var dup = hits.FirstOrDefault(h => h.Players.Contains(death.Death!.Victim) &&
+            var dup = hits.FirstOrDefault(h => (h.Victim ?? h.Players.FirstOrDefault()) == death.Death!.Victim &&
                                                h.Aoes.Any(a => a.Action == death.Death.KillingBlow!.Action));
             if (dup != null)
                 report.Incidents.Remove(dup);
@@ -1312,7 +1609,8 @@ public static class WipeAnalyzer
 
         // Damage Down resets are deliberate, but they still cost raises (8s hardcasts without Swiftcast) and can remove
         // players a mechanic needs, so they are part of the cascade — never its root.
-        var severe = report.Incidents.Where(i => (i.Severity >= 3 || i.Intentional) && i.Kind != IncidentKind.Enrage).ToList();
+        // Deliberate deaths that ended a lost pull are not part of what lost it.
+        var severe = report.Incidents.Where(i => (i.Severity >= 3 || i.Intentional) && i.Kind != IncidentKind.Enrage && !i.DeliberateWipe).ToList();
 
         // Walk back from the end of the pull through the final cascade of deaths/failures. Earlier incidents that
         // were recovered from (e.g. a death that was raised long before the wipe) are not the cause.
@@ -1328,37 +1626,50 @@ public static class WipeAnalyzer
             cascade.Add(severe[i]);
         }
 
+        // Follow recorded causes back (e.g. a tower that failed because its soakers were already dead).
+        var traced = new HashSet<Incident>();
+        while (start is { Causes.Count: > 0 } && traced.Add(start))
+            start = start.Causes.MinBy(c => c.T);
+
+        // Who an incident is about: who is at fault, and who it happened to.
+        static IEnumerable<Actor> About(Incident i) => i.Victim != null ? i.Players.Append(i.Victim) : i.Players;
+
         Incident? trigger = null;
         if (start is { Intentional: true })
         {
-            // The cascade began with a reset: the hit that applied its Damage Down is the real mistake.
-            trigger = report.Incidents.LastOrDefault(i => i.Kind == IncidentKind.AvoidableHit && i.Players.Intersect(start.Players).Any() &&
-                                                          Math.Abs(i.T - start.DamageDownAt) <= 1500);
+            // The cascade began with a reset: what applied its Damage Down is the real mistake. That is the player's own
+            // avoidable hit, or a failure that gave it out (a missed tower).
+            trigger = report.Incidents.LastOrDefault(i => i.Kind == IncidentKind.AvoidableHit && About(i).Intersect(About(start)).Any() &&
+                                                          Math.Abs(i.T - start.DamageDownAt) <= 1500)
+                      ?? report.Incidents.LastOrDefault(i => !i.Intentional && i.Kind is IncidentKind.FailureAction or IncidentKind.TowerUnderSoaked &&
+                                                             i.T <= start.DamageDownAt + 500 && start.DamageDownAt - i.T <= 3000);
         }
         else if (start != null)
         {
-            // An avoidable hit / missed mechanic shortly before the cascade start, on the same player, started it.
-            trigger = report.Incidents.LastOrDefault(i => i.Severity == 2 && i.T <= start.T && start.T - i.T <= 6000 &&
-                                                          (i.Players.Intersect(start.Players).Any() || start.Players.Count == 0));
+            // An avoidable hit / missed mechanic shortly before the cascade start, on the same player, started it. A cause
+            // comes before its effect: something at the same moment is part of it, not its trigger.
+            trigger = report.Incidents.LastOrDefault(i => i.Severity == 2 && i.T <= start.T - 300 && start.T - i.T <= 6000 &&
+                                                          About(i).Intersect(About(start)).Any());
         }
 
         // An enrage is always the verdict; earlier deaths are listed as contributing (lost DPS).
         var root = enrage ?? trigger ?? start ?? report.Incidents.LastOrDefault();
 
-        // Several resets in the final cascade: they overwhelmed recovery (raises, healer GCDs).
-        var resets = cascade.Where(i => i.Intentional).OrderBy(i => i.T).ToList();
+        // A reset is never a mistake: if it is still the root, what gave its Damage Down wasn't found.
+        if (root is { Intentional: true } && root != enrage)
+            root.VerdictHint = "Unexplained reset";
+
+        // Several resets in the final cascade: a contributing note (each one needs a raise and healer GCDs), never the
+        // verdict. Resets trace to whatever applied their Damage Down.
+        var resets = cascade.Where(i => i.Intentional && !i.DeliberateWipe).OrderBy(i => i.T).ToList();
         if (enrage == null && root != null && resets.Count >= 2)
         {
-            root.VerdictHint = "Resets";
             var span = (resets[^1].T - resets[0].T) / 1000f;
             root.Detail += $". {resets.Count} players reset Damage Down within {span:0.#}s during the collapse " +
                            $"({string.Join("; ", resets.Select(x => $"{x.Players.FirstOrDefault()?.Name}: {x.Detail[(x.Detail.LastIndexOf('—') + 1)..].Trim()}"))})" +
                            " — each reset needs a raise (8s hardcast without Swiftcast) and healer GCDs to recover";
         }
-        else if (start is { Intentional: true } && trigger == null && root == start)
-        {
-            root.VerdictHint = "Resets";
-        }
+
         if (root != null)
             root.IsRootCause = true;
         report.RootCause = root;
@@ -1375,12 +1686,15 @@ public static class WipeAnalyzer
         {
             "Missing mitigation" => "Missing mitigation",
             "Vulnerability" => "Death with a vulnerability debuff",
-            "Resets" => "Damage Down resets overwhelmed recovery",
+
             "Arrow placement" => "Arrow placement failure",
             "Arrows used early" => "Arrows used before the confusion",
             "Confused positioning" => "Confused player reached an ally",
             "Bait" => "Bait landed on the party",
             "Double cleanse" => "Two cleanses inside the vulnerability window",
+            "Out of position" => "Out of position",
+            "Incorrect baiting" => "Incorrect baiting",
+            "Unexplained reset" => "Damage Down reset (cause not found)",
             _ => null,
         } ?? root?.Kind switch
         {

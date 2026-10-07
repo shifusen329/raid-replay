@@ -48,6 +48,14 @@ public sealed class WipeReportWindow : Window, IDisposable
 
     public override void Draw()
     {
+        // Escape closes the report when it has the focus, whatever Dalamud's own close-hotkey setting is. (While the game
+        // has the focus, Plugin closes it from the game's key state.)
+        if (ImGui.IsWindowFocused(ImGuiFocusedFlags.RootAndChildWindows) && ImGui.IsKeyPressed(ImGuiKey.Escape, false))
+        {
+            IsOpen = false;
+            return;
+        }
+
         if (report == null)
         {
             Theme.Wrapped("No wipe analyzed yet. The report opens here by itself when a pull ends.", Theme.TextDim);

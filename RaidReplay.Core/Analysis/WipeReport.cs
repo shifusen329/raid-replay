@@ -60,9 +60,16 @@ public sealed class Incident
     public required string Title { get; set; }
     public string Detail { get; set; } = string.Empty;
     public string? Mechanic { get; set; }
+    /// <summary>Who is at fault (shown as culprits).</summary>
     public List<Actor> Players { get; } = [];
     public List<AoeInstance> Aoes { get; } = [];
     public DeathEvent? Death { get; init; }
+
+    /// <summary>Who it happened to, when that can differ from who is at fault (a player hit by someone else's AoE).</summary>
+    public Actor? Victim { get; set; }
+
+    /// <summary>Earlier incidents this one is a consequence of (e.g. the deaths of a tower's soakers); root causes are traced through them.</summary>
+    public List<Incident> Causes { get; } = [];
 
     /// <summary>The mitigation-plan check of the mechanic this incident happened at, if any.</summary>
     public MitCheck? Mitigation { get; set; }
@@ -72,6 +79,12 @@ public sealed class Incident
 
     /// <summary>A deliberate death, e.g. jumping off to swap a Damage Down for Weakness after a raise.</summary>
     public bool Intentional { get; set; }
+
+    /// <summary>
+    /// A deliberate death that ended a lost pull (e.g. jumping off once the whole party has Damage Down): not a reset,
+    /// and no part of the collapse.
+    /// </summary>
+    public bool DeliberateWipe { get; set; }
 
     /// <summary>For Damage Down resets: when the Damage Down was applied (-1 if not a reset).</summary>
     public int DamageDownAt { get; set; } = -1;

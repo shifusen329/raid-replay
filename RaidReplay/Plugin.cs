@@ -1,5 +1,6 @@
 using System;
 using Dalamud.Game.ClientState.Conditions;
+using Dalamud.Game.ClientState.Keys;
 using Dalamud.Game.Command;
 using Dalamud.Interface.Windowing;
 using Dalamud.IoC;
@@ -23,6 +24,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static ICondition Condition { get; private set; } = null!;
     [PluginService] internal static IDutyState DutyState { get; private set; } = null!;
     [PluginService] internal static IFramework Framework { get; private set; } = null!;
+    [PluginService] internal static IKeyState KeyState { get; private set; } = null!;
     [PluginService] internal static IPluginLog Log { get; private set; } = null!;
 
     private const string CommandName = "/raidreplay";
@@ -98,9 +100,25 @@ public sealed class Plugin : IDalamudPlugin
         Theme.Dispose();
     }
 
-    private void OnFrameworkUpdate(IFramework framework) =>
+    /// <summary>Whether Escape was down last frame (a press closes the report once, not on every repeat).</summary>
+    private bool escapeHeld;
+
+    private void OnFrameworkUpdate(IFramework framework)
+    {
         Service.InDuty = Condition[ConditionFlag.BoundByDuty] || Condition[ConditionFlag.BoundByDuty56] ||
                          Condition[ConditionFlag.BoundByDuty95] || Condition[ConditionFlag.InCombat];
+
+        // Escape closes the after-action report even while the game has the focus (it opens by itself between pulls).
+        // The press is consumed so it doesn't also open the system menu or drop the target.
+        var escape = KeyState[VirtualKey.ESCAPE];
+        if (escape && !escapeHeld && WipeReportWindow.IsOpen)
+        {
+            WipeReportWindow.IsOpen = false;
+            KeyState[VirtualKey.ESCAPE] = false;
+        }
+
+        escapeHeld = escape;
+    }
 
     private void OnDutyEvent(Dalamud.Game.DutyState.IDutyStateEventArgs args) => Service.NudgeLive();
 

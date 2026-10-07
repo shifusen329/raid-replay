@@ -30,7 +30,7 @@ A Dalamud plugin for FINAL FANTASY XIV that rebuilds every pull from your ACT ne
 
 **Commands:**
 - `/raidreplay` (or `/rr`, `/rreplay`): the replay window.
-- `/aar` (or `/raidreplay report`): the after-action report of the last wipe; again to close.
+- `/aar` (or `/raidreplay report`): the after-action report of the last wipe; again, or Esc, to close.
 - `/raidreplay config`: settings.
 
 ACT must write network logs. By default the plugin reads `%USERPROFILE%\AppData\Roaming\Advanced Combat Tracker\FFXIVLogs`; you can change this in settings (environment variables are expanded). Indexing is incremental and cached; the first pass over about 23 GB of logs takes under a minute.
@@ -48,6 +48,8 @@ The engine works on any fight. It reads AoE shapes from the game's Action sheet 
 - soak counts and who soaks (e.g. the holder's role group), and fixed holder/soaker spots relative to waymarks;
 - arrow-teleporter puzzles: the intended layout and how far a teleport carries and chains;
 - failure abilities.
+
+Who the report blames, and which incident it picks as the root cause, follow the rules in [`ATTRIBUTION.md`](ATTRIBUTION.md).
 
 **Built-in pack: Dancing Mad (Ultimate)** ([`dmu.json`](RaidReplay.Core/Encounters/Packs/dmu.json)).
 - P1 and P2 are verified against real logs. Every shape was tuned with `rr validate-shapes`: most score 0.98–1.00 precision against actual hits.

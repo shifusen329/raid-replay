@@ -250,6 +250,20 @@ public static class EncounterValidator
                 problems.Add($"abilities[{id}]: bait must be \"farthest\" or \"closest\"");
             if (a.OnlyTarget && a.Category != "bait")
                 problems.Add($"abilities[{id}]: onlyTarget is for category \"bait\"");
+            if (a.BaitAt is not (null or "maxMelee"))
+                problems.Add($"abilities[{id}]: baitAt must be \"maxMelee\"");
+            if (a.SoakOrder is { } so)
+            {
+                if (so.Order.Length == 0 || so.Order.Any(ch => ch is not ('A' or 'B')))
+                    problems.Add($"abilities[{id}].soakOrder: order must be a string of A and B");
+                if (so.GroupMarker.Value == 0)
+                    problems.Add($"abilities[{id}].soakOrder: groupMarker is required");
+                foreach (var slot in so.Partners.SelectMany(p => p))
+                {
+                    if (!Analysis.PartySlots.Order.Contains(slot))
+                        problems.Add($"abilities[{id}].soakOrder: unknown party slot '{slot}'");
+                }
+            }
             foreach (var p in a.Positions ?? [])
             {
                 if (p.Group is not ("support" or "dps" or "any"))

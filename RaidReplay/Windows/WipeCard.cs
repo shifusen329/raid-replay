@@ -224,8 +224,12 @@ public readonly record struct Culprit(byte Job, string Label, string Tooltip);
 /// <summary>Pre-formatted incident.</summary>
 public sealed class IncidentRow
 {
+    private readonly WipeCard card;
+    private string? recap;
+
     internal IncidentRow(WipeCard card, Incident inc)
     {
+        this.card = card;
         Inc = inc;
         Time = Timeline.Fmt(inc.T);
         Kind = Theme.KindLabel(inc.Kind);
@@ -270,6 +274,63 @@ public sealed class IncidentRow
     public string Caption { get; }
     public string MapCaption { get; }
     public string Tooltip { get; }
+
+    /// <summary>
+    /// This incident as plain text for the clipboard: what happened, who is at fault, where they should have been and,
+    /// for a death, the damage and healing taken in the seconds before it. Built on first use (only when copied).
+    /// </summary>
+    public string Recap => recap ??= BuildRecap();
+
+    private const int RecapWindowMs = 10000;
+
+    private string BuildRecap()
+    {
+        var r = card.Report.Pull;
+        var sb = new StringBuilder();
+        sb.Append("[Raid Replay] ").Append(Kind).Append(" at ").Append(Time);
+        if (Mechanic != null)
+            sb.Append(" · ").Append(Mechanic);
+        sb.Append($" (pull #{r.Summary.Ordinal}").Append(Inc.IsRootCause ? ", root cause)" : ")").AppendLine();
+        sb.AppendLine(Title);
+        if (Culprits.Count > 0)
+            sb.Append("At fault: ").AppendLine(string.Join(", ", Culprits.Select(c => c.Label)));
+        if (Detail.Length > 0)
+            sb.AppendLine(Detail);
+        if (MitSummary != null)
+            sb.AppendLine(MitSummary);
+        foreach (var s in Snapshot.Where(s => s.Involved && s.Miss.Length > 0))
+            sb.Append("· ").Append(s.Label.TrimStart('●', ' ')).Append(": ").Append(s.Miss).Append(" from where they should have been")
+              .Append(s.Why.Length > 0 ? $" ({s.Why})" : string.Empty).AppendLine();
+
+        if (Inc.Death is { } d)
+        {
+            string Who(Actor? a) => a is { IsPlayer: true } ? $" ({card.Name(a)})" : string.Empty;
+            var lines = r.Actions.Where(a => a.T <= d.T + 100 && a.T >= d.T - RecapWindowMs)
+                         .SelectMany(a => a.Hits.Where(h => h.Target == d.Victim && (h.Damage > 0 || h.Heal > 0))
+                                                .Select(h => (h.T, Name: a.Name + Who(a.Source), h.Damage, h.Heal, h.HpBefore, h.MaxHp)))
+                         .Concat(r.Ticks.Where(k => k.Target == d.Victim && k.T <= d.T + 100 && k.T >= d.T - RecapWindowMs)
+                                  .Select(k => (k.T, Name: (k.IsHeal ? "HoT" : "DoT") + Who(k.Source), Damage: k.IsHeal ? 0 : k.Amount,
+                                                Heal: k.IsHeal ? k.Amount : 0, HpBefore: d.Victim.Hp.At(k.T - 1), MaxHp: d.Victim.MaxHp)))
+                         .OrderBy(x => x.T).ToList();
+            if (lines.Count > 0)
+            {
+                sb.AppendLine($"Last {RecapWindowMs / 1000}s before {card.Name(d.Victim)} died:");
+                foreach (var x in lines.TakeLast(25))
+                {
+                    sb.Append($"  {(x.T - d.T) / 1000f:0.0}s  ").Append(x.Damage > 0 ? $"-{x.Damage:N0}" : $"+{x.Heal:N0}").Append("  ").Append(x.Name);
+                    if (x.MaxHp > 0)
+                        sb.Append($"  ({100f * x.HpBefore / x.MaxHp:0}% HP before)");
+                    sb.AppendLine();
+                }
+            }
+
+            var statuses = r.Statuses.Where(s => s.Target == d.Victim && s.Active(d.T - 50)).Select(s => s.Name).Distinct().Take(16).ToList();
+            if (statuses.Count > 0)
+                sb.Append("Statuses at death: ").AppendLine(string.Join(", ", statuses));
+        }
+
+        return sb.ToString().TrimEnd();
+    }
 
     // UI-side caches (width-dependent ellipsis of the title).
     internal float EllipsisWidth;

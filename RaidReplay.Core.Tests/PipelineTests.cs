@@ -412,16 +412,26 @@ public class AfterActionTests
     public void DamageDownResetsAreDeliberateAndTheirCascadeIsExplained()
     {
         // Pull #11: a real Blizzard cone gives Damage Down -> the player jumps off (reset) -> their tower goes unsoaked
-        // -> more Damage Down -> more resets -> wipe.
+        // -> the Unmitigated Explosion gives most of the party Damage Down -> two players jump off to end the pull.
         var (_, report) = Analyze("dmu_p1_resets.log");
-        var resets = report.Incidents.Where(i => i.Intentional).ToList();
-        Assert.True(resets.Count >= 3, $"{resets.Count} resets");
-        Assert.All(resets, i => Assert.Equal(1, i.Severity));
-        Assert.All(resets, i => Assert.Contains("reset Damage Down", i.Title));
+        var deliberate = report.Incidents.Where(i => i.Intentional).ToList();
+        Assert.All(deliberate, i => Assert.Equal(1, i.Severity));
+
+        var reset = Assert.Single(deliberate, i => !i.DeliberateWipe);
+        Assert.Contains("reset Damage Down", reset.Title);
+        Assert.Contains("Blizzard III", reset.Detail);
+
+        // Jumping off once the whole party has Damage Down ends a lost pull: not a reset.
+        var wipes = deliberate.Where(i => i.DeliberateWipe).ToList();
+        Assert.True(wipes.Count >= 2, $"{wipes.Count} deliberate wipes");
+        Assert.All(wipes, i => Assert.Contains("wiped on purpose", i.Title));
+
         var root = Assert.IsType<Incident>(report.RootCause);
         Assert.False(root.Intentional);
         Assert.Equal(IncidentKind.AvoidableHit, root.Kind);
-        Assert.Equal("Damage Down resets overwhelmed recovery", report.Verdict);
+
+        // Resets are never the verdict (ATTRIBUTION.md): the root's own verdict stands.
+        Assert.Equal("Avoidable damage", report.Verdict);
     }
 
     [Fact]

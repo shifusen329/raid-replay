@@ -67,6 +67,25 @@ public sealed class ReportView
         copiedAt = DateTime.UtcNow;
     }
 
+    private IncidentRow? copiedRow;
+    private DateTime copiedRowAt;
+
+    /// <summary>A "Copy recap" link that puts one incident's recap on the clipboard.</summary>
+    private void CopyRecapLink(IncidentRow row)
+    {
+        var done = ReferenceEquals(copiedRow, row) && (DateTime.UtcNow - copiedRowAt).TotalSeconds < 1.5;
+        if (Link(done ? "Copied" : "Copy recap"))
+        {
+            ImGui.SetClipboardText(row.Recap);
+            copiedRow = row;
+            copiedRowAt = DateTime.UtcNow;
+        }
+
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip("Copy this incident as text: what happened, who is at fault, where they should have been and, " +
+                             "for a death, the damage and healing taken in the 10 seconds before it.");
+    }
+
     /// <summary>
     /// Draws the report. <paramref name="miniMap"/> adds a snapshot map of the selected incident next to the root
     /// cause. Returns an incident the user clicked (to seek the replay), if any.
@@ -196,6 +215,7 @@ public sealed class ReportView
 
         if (root.MitSummary != null)
             Theme.Wrapped(root.MitSummary, Theme.TextDim);
+        CopyRecapLink(root);
 
         if (root.Snapshot.Count > 0 && ImGui.TreeNode("Where everyone was###rootsnap"))
         {
@@ -338,6 +358,7 @@ public sealed class ReportView
                 Theme.Wrapped(row.Detail, new Vector4(0.82f, 0.85f, 0.9f, 1));
             if (row.MitSummary != null)
                 Theme.Wrapped(row.MitSummary, Theme.TextDim);
+            CopyRecapLink(row);
             if (row.Snapshot.Count > 0)
                 DrawSnapshotTable(row, c.ContentMaxX - ImGui.GetCursorScreenPos().X);
             ImGui.Unindent(ImGui.GetTreeNodeToLabelSpacing());
@@ -352,7 +373,10 @@ public sealed class ReportView
     {
         const ImGuiTableFlags flags = ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerV | ImGuiTableFlags.Resizable |
                                       ImGuiTableFlags.Hideable | ImGuiTableFlags.Reorderable | ImGuiTableFlags.SizingStretchProp;
-        using var wrap = ImRaii.TextWrapPos(-1);
+
+        // Wrap inside each cell (0 = the column's right edge), not at the card's edge, so narrow columns grow taller
+        // instead of cutting text off.
+        using var wrap = ImRaii.TextWrapPos(0);
 
         // Same id for every incident: column widths/visibility are shared (and saved) across all snapshot tables.
         using var table = ImRaii.Table("##snapshot", 6, flags, new Vector2(Math.Max(100, width), 0));
@@ -409,7 +433,7 @@ public sealed class ReportView
         Theme.Help("Reference plan: only cooldowns that were off cooldown, with their prerequisite met and the player alive, count as missing.");
         const ImGuiTableFlags flags = ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchProp | ImGuiTableFlags.BordersInnerV |
                                       ImGuiTableFlags.Resizable;
-        using var wrap = ImRaii.TextWrapPos(-1);
+        using var wrap = ImRaii.TextWrapPos(0); // wrap at each column's right edge
         using var table = ImRaii.Table("##mit", 4, flags);
         if (!table.Success)
             return;
