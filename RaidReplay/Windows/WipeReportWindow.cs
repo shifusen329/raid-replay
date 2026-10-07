@@ -81,12 +81,6 @@ public sealed class WipeReportWindow : Window, IDisposable
         if (ImGui.IsItemHovered())
             ImGui.SetTooltip("Load this pull in the replay window, seek to the selected incident and overlay where everyone should have been.");
         ImGui.SameLine();
-        if (ImGuiComponents.IconButtonWithText(reportView.RecentlyCopied ? FontAwesomeIcon.Check : FontAwesomeIcon.Clipboard,
-                                               reportView.RecentlyCopied ? "Copied" : "Copy summary"))
-            reportView.CopySummary(report);
-        if (ImGui.IsItemHovered())
-            ImGui.SetTooltip("Copy a plain-text summary (verdict, root cause, contributing incidents) for Discord or party chat.");
-        ImGui.SameLine();
         ImGui.AlignTextToFramePadding();
         Theme.Dim("Click an incident to show it on the map.");
     }

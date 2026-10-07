@@ -9,6 +9,7 @@
     "Description": "Reconstructs every pull from ACT network logs: arena map, waymarks, player positions and facing, boss casts and AoE telegraphs, towers, tethers, head markers and deaths, with a scrubbable timeline. Watches the live log and explains each wipe right after it happens: root cause, who was where, and where they should have been.\n\nAlpha: requires ACT with the FFXIV plugin writing network logs (default folder %USERPROFILE%\\AppData\\Roaming\\Advanced Combat Tracker\\FFXIVLogs). /aar opens the after-action report, /raidreplay the replay window.",
     "ApplicableVersion": "any",
     "RepoUrl": "https://github.com/shifusen329/raid-replay",
+    "IconUrl": "https://raw.githubusercontent.com/shifusen329/raid-replay/master/assets/icon.png",
     "Tags": ["raid", "replay", "act", "analysis", "logs"],
     "DalamudApiLevel": 15,
     "TestingDalamudApiLevel": 15,

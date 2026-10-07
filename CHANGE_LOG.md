@@ -2,6 +2,20 @@
 
 Notable changes to Raid Replay. Versions match the plugin version shown in `/xlplugins`.
 
+## [0.0.5] - 2026-10-07
+
+### Added
+
+- **Plugin icon** in the plugin installer.
+
+### Changed
+
+- **Fewer copy buttons.** The after-action report has one copy icon at the top, for the summary, and a "Copy" link in each expanded incident. The "Copy summary" button at the bottom and the root cause's "Copy recap" link are gone.
+
+### Fixed
+
+- **Copied text pasted into the game's chat kept only its first line.** Both copies now give one line that fits the chat box (at most 500 bytes): what happened, who is at fault and how far off their spot they were. Right-click either one for the full multi-line text, for Discord.
+
 ## [0.0.4] - 2026-10-07
 
 ### Added

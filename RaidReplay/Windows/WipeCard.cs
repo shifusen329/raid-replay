@@ -61,6 +61,7 @@ public sealed class WipeCard
 
         BuildMitigation(report);
         Clipboard = BuildClipboard(report);
+        ChatLine = BuildChatLine(report);
     }
 
     public WipeReport Report { get; }
@@ -81,6 +82,9 @@ public sealed class WipeCard
     public string MitigationTitle { get; private set; } = string.Empty;
     public List<MitRow> Mitigation { get; } = [];
     public string Clipboard { get; }
+
+    /// <summary>The summary as one line for the game's chat box (see <see cref="ForChat"/>).</summary>
+    public string ChatLine { get; }
 
     /// <summary>The card for a report, built on first use and cached for the report's lifetime. Thread-safe.</summary>
     public static WipeCard For(WipeReport report, bool anonymize)
@@ -197,6 +201,36 @@ public sealed class WipeCard
         return sb.ToString().TrimEnd();
     }
 
+    private string BuildChatLine(WipeReport report)
+    {
+        var s = report.Pull.Summary;
+        var head = $"[Raid Replay] {Verdict} — pull #{s.Ordinal}, {Timeline.Fmt(s.DurationMs)[..^2]}" +
+                   (report.Phase.Length > 0 ? $", {report.Phase}" : "") + (s.BossHpPct >= 0 ? $", boss {s.BossHpPct:0.0}%" : "");
+        return ForChat(Root != null ? $"{head}. Root cause {Root.Time}{(Root.Mechanic != null ? $" · {Root.Mechanic}" : "")}: {Root.ChatBody()}"
+                                    : $"{head}. {report.Headline}");
+    }
+
+    private const int ChatMaxBytes = 500;
+
+    /// <summary>
+    /// Text for the game's chat box, which keeps only the first line of a paste and at most 500 bytes: line breaks become
+    /// spaces, and longer text is cut at a word and ends with "...".
+    /// </summary>
+    internal static string ForChat(string text)
+    {
+        var s = string.Join(' ', text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                      .Replace("…", "...");
+        if (Encoding.UTF8.GetByteCount(s) <= ChatMaxBytes)
+            return s;
+        var cut = Math.Min(s.Length, ChatMaxBytes - 3);
+        while (cut > 0 && Encoding.UTF8.GetByteCount(s.AsSpan(0, cut)) > ChatMaxBytes - 3)
+            cut--;
+        var space = s.LastIndexOf(' ', cut);
+        if (space > cut / 2)
+            cut = space;
+        return s[..cut].TrimEnd(' ', ',', ';', ':', '—', '-') + "...";
+    }
+
     /// <summary>The first sentence/clause of a detail string, for one-line display.</summary>
     internal static string FirstSentence(string detail, out bool more)
     {
@@ -226,6 +260,7 @@ public sealed class IncidentRow
 {
     private readonly WipeCard card;
     private string? recap;
+    private string? chatLine;
 
     internal IncidentRow(WipeCard card, Incident inc)
     {
@@ -330,6 +365,29 @@ public sealed class IncidentRow
         }
 
         return sb.ToString().TrimEnd();
+    }
+
+    /// <summary>
+    /// This incident as one line for the game's chat box: what happened, who is at fault, how far off their spot the
+    /// involved players were and the first sentence of the detail. Built on first use.
+    /// </summary>
+    public string ChatLine => chatLine ??= WipeCard.ForChat(
+        $"[Raid Replay] #{card.Report.Pull.Summary.Ordinal} {Time} {Kind}{(Mechanic != null ? $" · {Mechanic}" : "")}" +
+        $"{(Inc.IsRootCause ? " (root cause)" : "")}: {ChatBody()}");
+
+    /// <summary>The part of <see cref="ChatLine"/> after its header, which the summary's chat line reuses for the root cause.</summary>
+    internal string ChatBody()
+    {
+        var sb = new StringBuilder(Title);
+        if (Culprits.Count > 0)
+            sb.Append(" — at fault: ").Append(string.Join(", ", Culprits.Select(c => c.Label)));
+        var off = Inc.Snapshot.Where(s => s is { Involved: true, MissDistance: > 1.5f }).OrderByDescending(s => s.MissDistance).Take(3)
+                     .Select(s => $"{card.Slot(s.Player)} {s.MissDistance:0.0}y off their spot").ToList();
+        if (off.Count > 0)
+            sb.Append(" — ").Append(string.Join(", ", off));
+        if (DetailShort.Length > 0)
+            sb.Append(" — ").Append(DetailShort);
+        return sb.ToString();
     }
 
     // UI-side caches (width-dependent ellipsis of the title).

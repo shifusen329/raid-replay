@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/banner-readme.jpg" alt="Raid Replay: a Dalamud plugin for Final Fantasy XIV" width="480"></p>
+
 # Raid Replay
 
 A Dalamud plugin for FINAL FANTASY XIV that rebuilds every pull from your ACT network logs. You can scrub through each pull on a map, and every wipe is explained the moment it happens.

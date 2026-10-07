@@ -61,29 +61,34 @@ public sealed class ReportView
 
     private static float Scale => ImGuiHelpers.GlobalScale;
 
-    public void CopySummary(WipeReport report)
+    /// <summary>Copies the summary as one line for the game's chat, or with <paramref name="full"/> as the full text.</summary>
+    public void CopySummary(WipeReport report, bool full = false)
     {
-        ImGui.SetClipboardText(WipeCard.For(report, config.AnonymizeNames).Clipboard);
+        var card = WipeCard.For(report, config.AnonymizeNames);
+        ImGui.SetClipboardText(full ? card.Clipboard : card.ChatLine);
         copiedAt = DateTime.UtcNow;
     }
 
     private IncidentRow? copiedRow;
     private DateTime copiedRowAt;
 
-    /// <summary>A "Copy recap" link that puts one incident's recap on the clipboard.</summary>
-    private void CopyRecapLink(IncidentRow row)
+    /// <summary>A "Copy" link that puts one incident on the clipboard: one line for chat, or the full recap on right-click.</summary>
+    private void CopyLink(IncidentRow row)
     {
         var done = ReferenceEquals(copiedRow, row) && (DateTime.UtcNow - copiedRowAt).TotalSeconds < 1.5;
-        if (Link(done ? "Copied" : "Copy recap"))
+        var left = Link(done ? "Copied" : "Copy");
+        var right = ImGui.IsItemHovered() && ImGui.IsItemClicked(ImGuiMouseButton.Right);
+        if (left || right)
         {
-            ImGui.SetClipboardText(row.Recap);
+            ImGui.SetClipboardText(right ? row.Recap : row.ChatLine);
             copiedRow = row;
             copiedRowAt = DateTime.UtcNow;
         }
 
         if (ImGui.IsItemHovered())
-            ImGui.SetTooltip("Copy this incident as text: what happened, who is at fault, where they should have been and, " +
-                             "for a death, the damage and healing taken in the 10 seconds before it.");
+            ImGui.SetTooltip("Copy this incident as one line for the game's chat: what happened, who is at fault and why.\n" +
+                             "Right-click: the full recap for Discord, with where everyone should have been and, for a death, " +
+                             "the damage and healing taken in the 10 seconds before it.");
     }
 
     /// <summary>
@@ -143,8 +148,11 @@ public sealed class ReportView
         if (ImGui.GetCursorScreenPos().X < x)
             ImGui.SetCursorScreenPos(new Vector2(x, ImGui.GetCursorScreenPos().Y));
         if (Theme.IconButton("##copy", RecentlyCopied ? FontAwesomeIcon.Check : FontAwesomeIcon.Clipboard,
-                             RecentlyCopied ? "Copied!" : "Copy a text summary to the clipboard (for Discord / party chat)."))
+                             RecentlyCopied ? "Copied!" : "Copy the summary as one line for the game's chat.\n" +
+                                                          "Right-click: the full summary for Discord, with every contributing incident."))
             CopySummary(report);
+        else if (ImGui.IsItemHovered() && ImGui.IsItemClicked(ImGuiMouseButton.Right))
+            CopySummary(report, true);
 
         Theme.Wrapped(card.Meta, Theme.TextDim);
     }
@@ -215,7 +223,6 @@ public sealed class ReportView
 
         if (root.MitSummary != null)
             Theme.Wrapped(root.MitSummary, Theme.TextDim);
-        CopyRecapLink(root);
 
         if (root.Snapshot.Count > 0 && ImGui.TreeNode("Where everyone was###rootsnap"))
         {
@@ -358,7 +365,7 @@ public sealed class ReportView
                 Theme.Wrapped(row.Detail, new Vector4(0.82f, 0.85f, 0.9f, 1));
             if (row.MitSummary != null)
                 Theme.Wrapped(row.MitSummary, Theme.TextDim);
-            CopyRecapLink(row);
+            CopyLink(row);
             if (row.Snapshot.Count > 0)
                 DrawSnapshotTable(row, c.ContentMaxX - ImGui.GetCursorScreenPos().X);
             ImGui.Unindent(ImGui.GetTreeNodeToLabelSpacing());
