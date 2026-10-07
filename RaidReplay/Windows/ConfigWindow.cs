@@ -8,6 +8,7 @@ using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
 using RaidReplay.Core.Encounters;
 using RaidReplay.Core.Indexing;
+using RaidReplay.GameData;
 using RaidReplay.Rendering;
 using RaidReplay.Services;
 
@@ -242,6 +243,34 @@ public sealed class ConfigWindow : Window, IDisposable
         if (ImGui.Checkbox("Watch the live log and analyze each pull when it ends", ref b)) { config.LiveEnabled = b; changed = true; }
         b = config.AutoOpenReport;
         if (ImGui.Checkbox("Open the wipe report automatically", ref b)) { config.AutoOpenReport = b; changed = true; }
+        using (ImRaii.Disabled(!config.AutoOpenReport))
+        {
+            ImGui.Indent();
+            ImGui.TextUnformatted("after pulls in:");
+            if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+                ImGui.SetTooltip("The report is still made after every pull: /aar opens the last one.");
+            using (var table = ImRaii.Table("##autoopen", 2, ImGuiTableFlags.SizingStretchSame))
+            {
+                if (table.Success)
+                {
+                    foreach (var (kind, label, tip) in DutyKinds.All)
+                    {
+                        ImGui.TableNextColumn();
+                        var on = (config.AutoOpenDuties & kind) != 0;
+                        if (ImGui.Checkbox(label, ref on))
+                        {
+                            config.AutoOpenDuties = on ? config.AutoOpenDuties | kind : config.AutoOpenDuties & ~kind;
+                            changed = true;
+                        }
+
+                        if (tip.Length > 0 && ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+                            ImGui.SetTooltip(tip);
+                    }
+                }
+            }
+
+            ImGui.Unindent();
+        }
         b = config.ChatSummary;
         if (ImGui.Checkbox("Print a one-line summary to chat", ref b)) { config.ChatSummary = b; changed = true; }
         b = config.AutoLoadLivePull;

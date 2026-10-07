@@ -2,6 +2,30 @@
 
 Notable changes to Raid Replay. Versions match the plugin version shown in `/xlplugins`.
 
+## [0.0.6] - 2026-10-07
+
+### Added
+
+- **Feedback button in the after-action report,** for reporting what the analysis got wrong.
+  - The form asks for the incident (the selected one by default), what's wrong (wrong player blamed, wrong root cause, a missed mistake, a wrong "should have been" spot, or something else) and a note.
+  - The pull's log can be attached, anonymized: names become Player1–8, the date is shifted and chat is removed.
+  - Every player name in the report becomes a party slot. "What will be sent" shows the exact report, and nothing is sent until you press Send.
+  - A report that can't be delivered is kept and retried later.
+  - See "Feedback" in the README for exactly what a report contains.
+- **DPS tab in the replay window** (between Report and Deaths): each player's DPS, share of the party's damage and total damage at the playhead, plus the party's DPS.
+  - Three windows: since the pull started (as ACT shows it), since the current phase started (what a DPS check measures), and the last 15 seconds.
+  - Counts hits and DoT ticks on enemies, with pets' and summons' damage credited to their owner. Raid buffs aren't credited to whoever gave them.
+
+### Changed
+
+- **The after-action report opens by itself only after pulls in normal raids, Savage raids, Extreme and unreal trials, and Ultimate raids.** It used to open after every pull, including trash pulls in roulette dungeons.
+  - Settings › Live has a checkbox for each kind of duty: the four above, plus normal trials, alliance raids (including Chaotic), dungeons, and other duties such as criterion and deep dungeons.
+  - The report is still made after every pull, and `/aar` opens it.
+
+### Fixed
+
+- **`rr sanitize` kept some real names.** A player who first appeared during the pull, not at its start, kept their real name and id in the excerpt. They now get the next PlayerN like everyone else. The same anonymizer prepares the log attached to a feedback report.
+
 ## [0.0.5] - 2026-10-07
 
 ### Added

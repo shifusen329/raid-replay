@@ -37,6 +37,17 @@ A Dalamud plugin for FINAL FANTASY XIV that rebuilds every pull from your ACT ne
 
 ACT must write network logs. By default the plugin reads `%USERPROFILE%\AppData\Roaming\Advanced Combat Tracker\FFXIVLogs`; you can change this in settings (environment variables are expanded). Indexing is incremental and cached; the first pass over about 23 GB of logs takes under a minute.
 
+## Feedback
+
+When the report gets something wrong, press **Feedback** at the bottom of the after-action report. Pick the incident and what's wrong (wrong player blamed, wrong root cause, a missed mistake, a wrong "should have been" spot), and add a note. "What will be sent" shows the exact report before you send it. Nothing is sent until you press **Send**.
+
+A report contains:
+- the report's incidents, verdict and positions, with every player name replaced by a party slot (MT, H1, …);
+- the pull's lines from your ACT log, unless you untick it. Names become Player1–8, the date and time are shifted to 2000-01-01, and chat, status lists and checksums are removed (the same anonymizer as `rr sanitize`);
+- the plugin version, the encounter pack, and a random install id.
+
+Reports go to the developer's server. One that can't be delivered is kept in the plugin's config folder and retried later. The server's side is in [`server/`](server/).
+
 ## Encounter packs
 
 The engine works on any fight. It reads AoE shapes from the game's Action sheet and infers bosses, helpers, phases and raidwides from what happened in the log. For fights you progress, an **encounter pack** (JSON) makes the replay and analysis precise. A pack can describe:
@@ -91,6 +102,7 @@ rr phases <file> · rr index · rr stats <file> · rr sanitize <file> <n> <out> 
 | `RaidReplay` | Dalamud plugin: background service, ImGui replay canvas, timeline, report windows, Lumina game data |
 | `RaidReplay.Cli` | `rr` tool for inspecting and validating outside the game |
 | `RaidReplay.Core.Tests` | xUnit tests on sanitized log fixtures. Integration tests run against your real logs when `LOGS_PATH` is set |
+| `server/` | The feedback endpoint's database table (`rr_feedback.sql`) and the Edge Function that emails each report |
 
 ## Known limitations
 

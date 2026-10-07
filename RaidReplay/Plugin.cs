@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.ClientState.Keys;
 using Dalamud.Game.Command;
@@ -44,11 +45,14 @@ public sealed class Plugin : IDalamudPlugin
         ConfigWindow = new ConfigWindow(Configuration, Service);
         ReplayWindow = new ReplayWindow(this, Service, Configuration);
         WipeReportWindow = new WipeReportWindow(this, Service, Configuration);
+        Feedback = new FeedbackService(PluginInterface.GetPluginConfigDirectory(), typeof(Plugin).Assembly.GetName().Version?.ToString() ?? "?");
+        FeedbackWindow = new FeedbackWindow(Feedback, Configuration);
         SidePanelWindow = new SidePanelWindow(ReplayWindow, Configuration) { IsOpen = Configuration.SidePanelPoppedOut };
         ReplayWindow.Popout = SidePanelWindow;
         WindowSystem.AddWindow(ConfigWindow);
         WindowSystem.AddWindow(ReplayWindow);
         WindowSystem.AddWindow(WipeReportWindow);
+        WindowSystem.AddWindow(FeedbackWindow);
         WindowSystem.AddWindow(SidePanelWindow);
 
         var help = new CommandInfo(OnCommand)
@@ -70,6 +74,13 @@ public sealed class Plugin : IDalamudPlugin
 
         Service.LiveReportReady += OnLiveReport;
         Service.Start();
+
+        // Deliver feedback reports saved while the server couldn't be reached.
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(TimeSpan.FromSeconds(20)).ConfigureAwait(false);
+            await Feedback.RetryQueuedAsync().ConfigureAwait(false);
+        });
     }
 
     public Configuration Configuration { get; }
@@ -77,6 +88,8 @@ public sealed class Plugin : IDalamudPlugin
     private ConfigWindow ConfigWindow { get; }
     private ReplayWindow ReplayWindow { get; }
     private WipeReportWindow WipeReportWindow { get; }
+    private FeedbackService Feedback { get; }
+    private FeedbackWindow FeedbackWindow { get; }
     private SidePanelWindow SidePanelWindow { get; }
 
     public void Dispose()
@@ -92,6 +105,8 @@ public sealed class Plugin : IDalamudPlugin
         ConfigWindow.Dispose();
         ReplayWindow.Dispose();
         WipeReportWindow.Dispose();
+        FeedbackWindow.Dispose();
+        Feedback.Dispose();
         CommandManager.RemoveHandler(CommandName);
         CommandManager.RemoveHandler(CommandAlias);
         CommandManager.RemoveHandler(ShortCommand);
@@ -138,7 +153,7 @@ public sealed class Plugin : IDalamudPlugin
             Log.Warning(e, "Pre-formatting the wipe card failed; it will be built on first draw");
         }
 
-        if (Configuration.AutoOpenReport)
+        if (Configuration.AutoOpenReport && (Configuration.AutoOpenDuties & DutyKinds.Of(report.Pull.Summary.ZoneId)) != 0)
             System.Threading.Volatile.Write(ref pendingReport, report);
         if (Configuration.ChatSummary)
             Framework.RunOnFrameworkThread(() => ChatGui.Print(report.ChatLine.Replace("[Raid Replay] ", string.Empty), "RaidReplay"));
@@ -152,6 +167,9 @@ public sealed class Plugin : IDalamudPlugin
     }
 
     public void ShowLiveReport(WipeReport report) => WipeReportWindow.Show(report);
+
+    /// <summary>Opens the feedback form for a report, starting at the given incident.</summary>
+    public void OpenFeedback(WipeReport report, Incident? incident) => FeedbackWindow.Open(report, incident);
 
     public void OpenReplayAt(WipeReport report, Incident? incident)
     {

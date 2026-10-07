@@ -1,5 +1,7 @@
 using RaidReplay.Core.Analysis;
 using RaidReplay.Core.Encounters;
+using RaidReplay.Core.Export;
+using RaidReplay.Core.Feedback;
 using RaidReplay.Core.Indexing;
 using RaidReplay.Core.Loading;
 using RaidReplay.Core.Model;
@@ -622,5 +624,117 @@ public class PackSchemaTests
             """, "t"));
         var dmu = TestEnv.Registry.ForTerritory(0x553)!.Def;
         Assert.Contains(dmu.Mitigation!.Mechanics, m => m.Phase == "p5");
+    }
+}
+
+public class DamageMeterTests
+{
+    private static bool IsEnemy(Actor a) => !a.IsPlayer && a.Kind != ActorKind.Pet;
+
+    [Theory]
+    [InlineData("dmu_p1_puddles.log")]
+    [InlineData("dmu_p1_cleave.log")]
+    public void CreditsHitsTicksAndPetsToEachPlayerAtAnyMoment(string fixture)
+    {
+        var r = PullLoader.Load(TestEnv.OnlyPull(fixture), null, TestEnv.Registry);
+        var meter = DamageMeter.For(r);
+        foreach (var p in r.Party)
+        {
+            bool Mine(Actor? a) => a == p || (a is { Kind: ActorKind.Pet } && a.OwnerId == p.Id);
+            var expected = r.Actions.Where(a => Mine(a.Source)).SelectMany(a => a.Hits).Where(h => h.Damage > 0 && IsEnemy(h.Target))
+                            .Sum(h => (long)h.Damage) +
+                           r.Ticks.Where(k => !k.IsHeal && Mine(k.Source) && IsEnemy(k.Target)).Sum(k => (long)k.Amount);
+            Assert.Equal(expected, meter.DamageUntil(p, int.MaxValue));
+
+            // Windows add up, and the total only grows.
+            var mid = r.EndMs / 2;
+            Assert.Equal(expected, meter.Damage(p, int.MinValue, mid) + meter.Damage(p, mid, int.MaxValue));
+            Assert.True(meter.DamageUntil(p, mid) <= meter.DamageUntil(p, mid + 1000));
+        }
+
+        Assert.True(r.Party.Count(p => meter.DamageUntil(p, r.EndMs) > 0) >= 7);
+    }
+
+    [Fact]
+    public void PetDamageCountsForItsOwner()
+    {
+        var r = PullLoader.Load(TestEnv.OnlyPull("dmu_p1_cleave.log"), null, TestEnv.Registry);
+        var meter = DamageMeter.For(r);
+        var pet = r.Actions.First(a => a.Source.Kind == ActorKind.Pet && a.Hits.Any(h => h.Damage > 0 && IsEnemy(h.Target)));
+        var owner = Assert.Single(r.Party, p => p.Id == pet.Source.OwnerId);
+        Assert.True(meter.Damage(owner, pet.T - 1, pet.T) >= pet.Hits.Where(h => IsEnemy(h.Target)).Sum(h => (long)h.Damage));
+    }
+}
+
+public class FeedbackTests
+{
+    [Fact]
+    public void ExcerptOfAPullIndexesBackToTheSamePull()
+    {
+        var pull = TestEnv.OnlyPull("dmu_p1_cleave.log");
+        var path = Path.Combine(TestEnv.TempDir(), "excerpt.log");
+        ExcerptInfo info;
+        using (var writer = new StreamWriter(path, false, new System.Text.UTF8Encoding(false)))
+            info = PullExcerpt.Write(pull, writer);
+
+        Assert.True(info.Lines > 1000);
+        Assert.Equal(pull.Party.Select((p, i) => $"Player{i + 1}"), pull.Party.Select(p => info.LogNames[p.Id]));
+        Assert.All(File.ReadLines(path), l => Assert.EndsWith("|0000000000000000", l));
+        Assert.StartsWith("01|2000-01-01T00:00:00", File.ReadLines(path).First());
+
+        var again = Assert.Single(IndexStore.IndexFile(path, null, new EncounterObserverFactory(TestEnv.Registry), TestEnv.Registry.HashFor).Pulls);
+        Assert.Equal(pull.Outcome, again.Outcome);
+        Assert.Equal(pull.Deaths, again.Deaths);
+        Assert.Equal(pull.Party.Count, again.Party.Count);
+        Assert.InRange(again.DurationMs, pull.DurationMs - 50, pull.DurationMs + 50);
+    }
+
+    [Fact]
+    public void PlayersWhoAppearMidPullAreAnonymizedToo()
+    {
+        // A player who isn't in the pull-start snapshot shows up halfway through and uses an ability.
+        var lines = File.ReadAllLines(TestEnv.Fixture("dmu_p1_cleave.log")).ToList();
+        var at = lines.FindIndex(400, l => l.StartsWith("21|"));
+        var ts = lines[at].Split('|')[1];
+        lines.InsertRange(at + 1,
+        [
+            $"03|{ts}|10ABCDEF|Stranger Person|26|64|0000|4A|Faraway|0|0|71622|226488|10000|10000|||100.00|100.00|0.00|0.00|0000000000000000",
+            $"21|{ts}|10ABCDEF|Stranger Person|3E7D|Standard Step|10ABCDEF|Stranger Person|E|71A0000|0|0|0|0|0|0|0|0|0|0|0|0|0|0|226488|226488|10000|10000|||100.00|100.00|0.00|0.00|226488|226488|10000|10000|||100.00|100.00|0.00|0.00|0000BEEF|0|1|00||01|3E7D|3E7D|0.100|0000|0000000000000000",
+        ]);
+        var dir = TestEnv.TempDir();
+        var source = Path.Combine(dir, "stranger.log");
+        File.WriteAllLines(source, lines);
+        var pull = Assert.Single(IndexStore.IndexFile(source, null, null, null).Pulls);
+
+        var excerpt = new StringWriter();
+        var info = PullExcerpt.Write(pull, excerpt);
+        Assert.DoesNotContain("Stranger Person", excerpt.ToString());
+        Assert.DoesNotContain("10ABCDEF", excerpt.ToString());
+        Assert.DoesNotContain("Faraway", excerpt.ToString());
+        Assert.Equal($"Player{pull.Party.Count + 1}", info.LogNames[0x10ABCDEF]);
+    }
+
+    [Fact]
+    public void ReportCarriesSlotsNotNames()
+    {
+        var r = PullLoader.Load(TestEnv.OnlyPull("dmu_p1_cleave.log"), null, TestEnv.Registry);
+        var report = WipeAnalyzer.Analyze(r);
+        var root = report.RootCause!;
+        var excerpt = new ExcerptInfo(1, r.Party.Select((p, i) => (p.Id, $"Player{i + 1}")).ToDictionary(x => x.Id, x => x.Item2));
+        var body = FeedbackReport.Build(report, root, FeedbackCategory.WrongCulprit, "  " + new string('x', 5000) + "  ", "0.0.6.0",
+                                        Guid.NewGuid(), "dmu 1234abcd", excerpt, "H4sI");
+
+        Assert.Equal("wrong_culprit", (string?)body["category"]);
+        Assert.Equal(FeedbackReport.MaxNote, ((string?)body["note"])!.Length);
+        Assert.Equal(report.Incidents.IndexOf(root), (int?)body["report"]!["rootCause"]);
+        Assert.Equal(root.Title.Length > 0, ((string?)body["incident"]!["title"])!.Length > 0);
+        Assert.Equal(8, body["report"]!["players"]!.AsArray().Count);
+
+        // Names appear only as the log's PlayerN labels in report.players, never in any text.
+        var texts = body.DeepClone().AsObject();
+        texts["report"]!.AsObject().Remove("players");
+        var json = texts.ToJsonString();
+        Assert.All(r.Party, p => Assert.DoesNotContain(p.Name, json));
+        Assert.Contains("\"atFault\":[\"", json);
     }
 }

@@ -49,6 +49,14 @@ public sealed class ReplayWindow : Window, IDisposable
         "HP before the hit.",
     ];
 
+    private static readonly string[] DpsNames = ["Player", "DPS", "Share", "Damage"];
+
+    private static readonly string[] DpsTips =
+    [
+        "Party member (dimmed while dead).", "Damage per second over the chosen window.", "Share of the party's damage in the window.",
+        "Total damage in the window.",
+    ];
+
     private static readonly ConditionalWeakTable<PullSummary, PullRowText> RowTexts = new();
 
     private readonly Plugin plugin;
@@ -65,6 +73,9 @@ public sealed class ReplayWindow : Window, IDisposable
     private string zoneFilter = "All";
     private DeathEvent? selectedDeath;
     private int eventFilter = 0b1111;
+
+    /// <summary>DPS tab window: 0 = since the pull started, 1 = since the phase started, 2 = the last 15 seconds.</summary>
+    private int dpsWindow;
     private List<PullSummary> filtered = [];
     private List<string> zones = ["All"];
     private (int, bool, int, string) filterState;
@@ -1132,6 +1143,12 @@ public sealed class ReplayWindow : Window, IDisposable
                 DrawReportTab(r);
         }
 
+        using (var tab = ImRaii.TabItem("DPS"))
+        {
+            if (tab.Success)
+                DrawDps(r);
+        }
+
         using (var tab = ImRaii.TabItem("Deaths"))
         {
             if (tab.Success)
@@ -1174,6 +1191,81 @@ public sealed class ReplayWindow : Window, IDisposable
         else if (!overlayCleared)
             renderer.Highlight = reportView.Selected;
     }
+
+    private void DrawDps(PullReplay r)
+    {
+        const int RollingMs = 15000;
+        var t = (int)timeMs;
+        ImGui.RadioButton("Pull", ref dpsWindow, 0);
+        Theme.Tip("Since the pull started (encounter DPS, as ACT shows it).");
+        ImGui.SameLine();
+        ImGui.RadioButton("Phase", ref dpsWindow, 1);
+        Theme.Tip("Since the current phase started: what a DPS check like P3's Meteor measures.");
+        ImGui.SameLine();
+        ImGui.RadioButton("Last 15 s", ref dpsWindow, 2);
+        Theme.Tip("The 15 seconds before the playhead: burst windows and dips.");
+
+        var phase = r.Phases.LastOrDefault(p => !p.IsSegment && p.StartMs <= t);
+        var (from, start, what) = dpsWindow switch
+        {
+            1 when phase != null => (phase.StartMs, phase.StartMs, $"since {phase.Name} started"),
+            2 => (t - RollingMs, Math.Max(0, t - RollingMs), "in the last 15 s"),
+            _ => (int.MinValue, 0, "since the pull started"),
+        };
+        var seconds = (t - start) / 1000f;
+        if (seconds < 1)
+        {
+            Theme.Dim("Move the playhead past the start of the window.");
+            return;
+        }
+
+        var meter = DamageMeter.For(r);
+        var rows = r.Party.Select(p => (Player: p, Damage: meter.Damage(p, from, t))).OrderByDescending(x => x.Damage).ToList();
+        var party = rows.Sum(x => x.Damage);
+        var top = Math.Max(1, rows.Count > 0 ? rows[0].Damage : 1);
+        using (Theme.TitleFont())
+            Theme.Wrapped($"Party {party / seconds:N0} DPS", Theme.Text);
+        Theme.Dim($"{ShortNumber(party)} damage {what} ({Timeline.Fmt((int)(seconds * 1000))[..^2]}).");
+
+        using (var table = ImRaii.Table("##dps", 4, ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchProp | ImGuiTableFlags.BordersInnerV))
+        {
+            if (table.Success)
+            {
+                ImGui.TableSetupColumn("Player", ImGuiTableColumnFlags.WidthStretch, 1.4f);
+                ImGui.TableSetupColumn("DPS", ImGuiTableColumnFlags.WidthStretch, 1.6f);
+                ImGui.TableSetupColumn("Share", ImGuiTableColumnFlags.WidthStretch, 0.5f);
+                ImGui.TableSetupColumn("Damage", ImGuiTableColumnFlags.WidthStretch, 0.6f);
+                Theme.TableHeaders(DpsNames, DpsTips);
+                var icon = ImGui.GetTextLineHeight();
+                foreach (var (p, damage) in rows)
+                {
+                    var dead = r.Deaths.Any(d => d.Victim == p && d.T <= t && (d.RaisedMs < 0 || d.RaisedMs > t));
+                    ImGui.TableNextRow();
+                    ImGui.TableSetColumnIndex(0);
+                    ReportView.JobIcon(p.Job, icon);
+                    ImGui.SameLine(0, 4 * Scale);
+                    ImGui.TextColored(dead ? Theme.TextDim : Theme.Text, renderer.DisplayName(p));
+                    ImGui.TableSetColumnIndex(1);
+                    using (ImRaii.PushColor(ImGuiCol.PlotHistogram, Theme.With(Palette.ForJob(p.Job), dead ? 0.35f : 0.85f)))
+                        ImGui.ProgressBar((float)damage / top, new Vector2(-1, icon), $"{damage / seconds:N0}");
+                    ImGui.TableSetColumnIndex(2);
+                    ImGui.TextUnformatted(party > 0 ? $"{100.0 * damage / party:0.0}%" : "–");
+                    ImGui.TableSetColumnIndex(3);
+                    ImGui.TextUnformatted(ShortNumber(damage));
+                }
+            }
+        }
+
+        Theme.Wrapped("Hits and DoT ticks on enemies; pets and summons count for their owner. Downtime counts, as in ACT. " +
+                      "Raid buffs are credited to whoever dealt the damage, not to whoever gave the buff.", Theme.TextFaint);
+    }
+
+    private static string ShortNumber(long n) => n switch
+    {
+        >= 1_000_000 => $"{n / 1_000_000.0:0.00}M",
+        >= 10_000 => $"{n / 1_000.0:0}k",
+        _ => $"{n:N0}",
+    };
 
     private void DrawDeaths(PullReplay r)
     {

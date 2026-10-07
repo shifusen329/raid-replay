@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using Dalamud.Configuration;
+using RaidReplay.GameData;
 
 namespace RaidReplay;
 
@@ -17,11 +18,17 @@ public class Configuration : IPluginConfiguration
     // Live analysis
     public bool LiveEnabled { get; set; } = true;
     public bool AutoOpenReport { get; set; } = true;
+
+    /// <summary>Kinds of duty after whose pulls the report opens by itself.</summary>
+    public DutyKind AutoOpenDuties { get; set; } = DutyKinds.Default;
     public bool ChatSummary { get; set; } = true;
     public bool AutoLoadLivePull { get; set; } = true;
     public int LivePollMs { get; set; } = 1000;
     public int FlushDelayMs { get; set; } = 1500;
     public bool LearnInBackground { get; set; } = true;
+
+    /// <summary>Random id sent with feedback reports so one install's reports can be grouped; created on the first report.</summary>
+    public Guid FeedbackInstallId { get; set; }
 
     // Display
     public bool ShowMapTexture { get; set; } = true;

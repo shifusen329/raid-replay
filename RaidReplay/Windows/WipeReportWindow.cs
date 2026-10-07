@@ -81,6 +81,12 @@ public sealed class WipeReportWindow : Window, IDisposable
         if (ImGui.IsItemHovered())
             ImGui.SetTooltip("Load this pull in the replay window, seek to the selected incident and overlay where everyone should have been.");
         ImGui.SameLine();
+        if (ImGuiComponents.IconButtonWithText(FontAwesomeIcon.Flag, "Feedback"))
+            plugin.OpenFeedback(report, reportView.Selected);
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip("Report something this got wrong: the wrong player blamed, the wrong root cause, a missed mistake…\n" +
+                             "Starts at the selected incident. You'll see exactly what's sent before sending.");
+        ImGui.SameLine();
         ImGui.AlignTextToFramePadding();
         Theme.Dim("Click an incident to show it on the map.");
     }
