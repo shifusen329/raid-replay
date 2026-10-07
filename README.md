@@ -51,7 +51,7 @@ The engine works on any fight. It reads AoE shapes from the game's Action sheet 
 
 **Built-in pack: Dancing Mad (Ultimate)** ([`dmu.json`](RaidReplay.Core/Encounters/Packs/dmu.json)).
 - P1 and P2 are verified against real logs. Every shape was tuned with `rr validate-shapes`: most score 0.98–1.00 precision against actual hits.
-- P3–P5 are placeholders taken from the guides until logs reach those phases.
+- P3 to Earthquake is verified against a log that reaches P3. The rest of P3, P4 and P5 are verified against a full clear. That log was written without OverlayPlugin's lines, so the positions of attacks placed by invisible helpers are not yet checked there.
 - Tele-trouncing (Graven Image III) is checked arrow by arrow:
   - every arrow is matched to the spot it belonged on (the plain clockwise square, or the corner variant some groups use);
   - arrows dropped on top of each other, or used up before the confusion (including by an out-of-place confetti knockback), are blamed on whoever was out of place;

@@ -189,6 +189,11 @@ public static class ArrowSquare
         CollectDrops(r, def, result);
         if (result.Teleporters.Count == 0 && result.Drops.Count(d => !d.Dead) == 0)
             return null;
+
+        // Logs written without OverlayPlugin's combatant lines (261) have no event objects at all, so the teleporters
+        // can't be seen: there is nothing to judge.
+        if (result.Teleporters.Count == 0 && !r.Actors.Any(a => a.Kind == ActorKind.EventObject))
+            return null;
         MatchLayout(def, result);
         FindStacks(result);
 

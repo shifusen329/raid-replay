@@ -248,6 +248,8 @@ public static class EncounterValidator
                 problems.Add($"abilities[{id}]: soakGroup must be \"role\" and needs soakers");
             if (a.Bait is not (null or "farthest" or "closest"))
                 problems.Add($"abilities[{id}]: bait must be \"farthest\" or \"closest\"");
+            if (a.OnlyTarget && a.Category != "bait")
+                problems.Add($"abilities[{id}]: onlyTarget is for category \"bait\"");
             foreach (var p in a.Positions ?? [])
             {
                 if (p.Group is not ("support" or "dps" or "any"))
@@ -291,6 +293,8 @@ public static class EncounterValidator
         {
             if (mm.Hits.Count == 0 && mm.HitNames.Count == 0)
                 problems.Add($"mitigation[{mm.Id}]: needs hits or hitNames");
+            if (mm.Phase != null && def.Phases.All(p => p.Id != mm.Phase))
+                problems.Add($"mitigation[{mm.Id}]: unknown phase '{mm.Phase}'");
             foreach (var item in mm.Plan)
             {
                 if (!sheetSlots.Contains(item.Slot))

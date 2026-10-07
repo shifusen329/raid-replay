@@ -1,4 +1,5 @@
 using System.Numerics;
+using RaidReplay.Core.Analysis;
 using RaidReplay.Core.Encounters;
 using RaidReplay.Core.GameData;
 using RaidReplay.Core.Geometry;
@@ -216,6 +217,20 @@ public static class AoeInference
             case "animTarget":
             {
                 var t = origin == "animTarget" ? res?.AnimationTarget ?? target : target;
+
+                // Without the AbilityExtra line (logs written without OverlayPlugin) an AoE that spares its holder only
+                // names the players it hit; the holder is the one they stood on. If no one fits (positions in such logs
+                // can be stale), the holder is unknown: centre it on the players hit rather than make one of them the holder.
+                if (origin == "animTarget" && res is { AnimationTarget: null } && def?.ExcludesHolder == true)
+                {
+                    t = UnhitHolder(r, res, resolveMs, shape.Radius);
+                    if (t == null && HitMidpoint(res, resolveMs) is { } mid)
+                    {
+                        one.Origin = mid;
+                        break;
+                    }
+                }
+
                 if (t != null)
                 {
                     one.Follow = t;
@@ -272,6 +287,46 @@ public static class AoeInference
         if (cast is { HasExtra: true })
             return "castLoc";
         return "caster";
+    }
+
+    /// <summary>
+    /// The living player nobody hit whose circle of <paramref name="radius"/> holds every player hit (the closest fit,
+    /// allowing for position sampling).
+    /// </summary>
+    private static Actor? UnhitHolder(PullReplay r, ActionEvent res, int t, float radius)
+    {
+        var hit = new List<Vector2>();
+        var hitActors = new HashSet<Actor>();
+        foreach (var h in res.Hits)
+        {
+            if (h.Target.IsPlayer && hitActors.Add(h.Target) && h.Target.Track.TrySample(t, out var pos, out _))
+                hit.Add(pos);
+        }
+
+        if (hit.Count == 0)
+            return null;
+        Actor? best = null;
+        var bestD = radius + 1.5f;
+        foreach (var p in r.Party)
+        {
+            if (hitActors.Contains(p) || !ShapeValidator.IsAlive(r, p, t) || !p.Track.TrySample(t, out var pos, out _))
+                continue;
+            var d = hit.Max(x => Vector2.Distance(x, pos));
+            if (d < bestD)
+            {
+                best = p;
+                bestD = d;
+            }
+        }
+
+        return best;
+    }
+
+    private static Vector2? HitMidpoint(ActionEvent res, int t)
+    {
+        var at = res.Hits.Where(h => h.Target.IsPlayer).Select(h => h.Target).Distinct()
+                    .Select(p => p.Track.TrySample(t, out var pos, out _) ? pos : (Vector2?)null).Where(p => p != null).ToList();
+        return at.Count > 0 ? at.Aggregate(Vector2.Zero, (s, p) => s + p!.Value) / at.Count : null;
     }
 
     private static Vector2 CasterPos(CastEvent? cast, ActionEvent? res, int t)

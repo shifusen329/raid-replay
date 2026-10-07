@@ -129,8 +129,11 @@ public sealed class MitMechanicDef
     public string Id { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
 
-    /// <summary>Planned time from pull start (seconds).</summary>
+    /// <summary>Planned time from pull start (seconds), or from the start of <see cref="Phase"/> when set.</summary>
     public float AtS { get; set; }
+
+    /// <summary>Phase id that <see cref="AtS"/> counts from, for phases whose start depends on a kill.</summary>
+    public string? Phase { get; set; }
 
     /// <summary>Damaging abilities of this mechanic (the hit time is the first one within ±WindowS of AtS).</summary>
     public List<HexId> Hits { get; set; } = [];
@@ -280,6 +283,11 @@ public sealed class AbilityDef
     /// say who ended up baiting it when it lands on the party.
     /// </summary>
     public string? Bait { get; set; }
+
+    /// <summary>
+    /// For baits aimed at one player (e.g. a tethered laser): anyone else it hits took an avoidable hit.
+    /// </summary>
+    public bool OnlyTarget { get; set; }
 
     public List<HexId>? ResolvesWith { get; set; }
     public bool ExcludesHolder { get; set; }

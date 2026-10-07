@@ -74,6 +74,14 @@ public sealed class LogIndexer : ILineConsumer
     private long tailUntil;
     private long lastCheckpointTicks;
     private bool seen260;
+
+    /// <summary>
+    /// First player-on-enemy hit while idle, in a log that has shown no 260 combat flag yet. Logs written without
+    /// OverlayPlugin have no 26x lines at all; such a hit starts the pull if no combat flag follows within a few seconds.
+    /// </summary>
+    private (long Offset, long Ticks)? pendingHostile;
+
+    private const long NoCombatFlagWait = 5 * Sec;
     private long fileFirstTicks;
     private int ordinal;
     private ResumeState? safe;
@@ -137,6 +145,20 @@ public sealed class LogIndexer : ILineConsumer
             EndPull(PullOutcome.CombatEnd, combatOffTicks, combatOffOffset);
         if (state == State.Tail && now > tailUntil)
             FinishTail(offset);
+        if (pendingHostile is { } hostile)
+        {
+            if (seen260 || state is State.Active or State.Ending)
+            {
+                pendingHostile = null;
+            }
+            else if (now - hostile.Ticks >= NoCombatFlagWait)
+            {
+                pendingHostile = null;
+                if (state == State.Tail)
+                    FinishTail(offset);
+                StartPull(hostile.Offset, hostile.Ticks, hostile.Ticks - fileFirstTicks < 2 * Sec);
+            }
+        }
 
         // Checkpoint before applying the line so a restore + replay from `offset` is exact.
         var isReset = type == LineType.ChangeZone ||
@@ -186,15 +208,22 @@ public sealed class LogIndexer : ILineConsumer
                 break;
             case LineType.Ability:
             case LineType.AoeAbility:
+            {
+                var src = f.Hex(F21.SourceId);
+                var tgt = f.Hex(F21.TargetId);
+                var playerOnEnemy = (src >> 28) == 1 && (tgt >> 28) == 4;
                 if (state is State.Active or State.Ending)
                 {
-                    var src = f.Hex(F21.SourceId);
-                    var tgt = f.Hex(F21.TargetId);
-                    if ((src >> 28) == 1 && (tgt >> 28) == 4 && World.Combatants.TryGetValue(tgt, out var enemy))
+                    if (playerOnEnemy && World.Combatants.TryGetValue(tgt, out var enemy))
                         engaged[tgt] = enemy;
+                }
+                else if (!seen260 && playerOnEnemy && World.InstanceId != 0)
+                {
+                    pendingHostile ??= (offset, ticks);
                 }
 
                 break;
+            }
         }
 
         return true;

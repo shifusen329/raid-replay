@@ -431,7 +431,9 @@ public class AfterActionTests
         var (_, report) = Analyze("dmu_p1_undersoak.log");
         var soak = Assert.Single(report.Incidents, i => i.Kind == IncidentKind.TowerUnderSoaked && i.Title.Contains("1/4"));
         Assert.Contains("4 overlapping", soak.Title);
-        Assert.Contains("Nearest free players", soak.Detail);
+        Assert.Contains("Missing from it", soak.Detail);
+        // The players who were inside are not the culprits; the ones who should have been are.
+        Assert.DoesNotContain(soak.Players, p => soak.Detail.StartsWith($"Inside: {p.Name}", StringComparison.Ordinal));
         Assert.Contains(soak.Snapshot, s => s.ExpectedSource == ExpectedSource.Soak);
     }
 
@@ -530,5 +532,85 @@ public class ArrowPuzzleTests
         Assert.All(missing, p => Assert.Equal(StackPositions.IsSupport(holder), StackPositions.IsSupport(p)));
         Assert.Contains("Already dead", inc.Detail);
         Assert.Equal(ExpectedSource.Soak, inc.Snapshot.Single(s => s.Player == missing[0]).ExpectedSource);
+    }
+}
+
+/// <summary>Some players log without OverlayPlugin: no 26x lines (no combat flag, combatant state, cast positions or animation targets).</summary>
+public class NoOverlayPluginTests
+{
+    private static string Strip(string fixture)
+    {
+        var lines = File.ReadAllLines(TestEnv.Fixture(fixture))
+                        .Where(l => !(int.TryParse(l.AsSpan(0, Math.Max(0, l.IndexOf('|'))), out var type) && type >= 253))
+                        .ToList();
+        var path = Path.Combine(TestEnv.TempDir(), fixture);
+        File.WriteAllText(path, string.Join("\r\n", lines) + "\r\n");
+        return path;
+    }
+
+    private static FileIndex Index(string path) =>
+        IndexStore.IndexFile(path, null, new EncounterObserverFactory(TestEnv.Registry), TestEnv.Registry.HashFor);
+
+    [Fact]
+    public void PullIsFoundWithoutTheCombatFlag()
+    {
+        var full = TestEnv.OnlyPull("dmu_p1_cleave.log");
+        var plain = Assert.Single(Index(Strip("dmu_p1_cleave.log")).Pulls);
+        Assert.Equal(PullOutcome.Wipe, plain.Outcome);
+        Assert.Equal("dmu", plain.EncounterKey);
+        Assert.Equal(full.Deaths, plain.Deaths);
+        // The start falls back to the first hit on an enemy, shortly after the combat flag would have been.
+        Assert.InRange((plain.StartTicks - full.StartTicks) / TimeSpan.TicksPerMillisecond, -500, 6000);
+    }
+
+    [Fact]
+    public void ConfettiHolderIsTheUnhitPlayerTheyStoodOn()
+    {
+        // Holders per confetti resolution (the two simultaneous ones can come out in either order).
+        static List<HashSet<string?>> Holders(PullReplay r) =>
+            r.Aoes.Where(a => a.ActionId == 0xBAA7 && a.Action != null).GroupBy(a => a.ResolveMs / 2000).OrderBy(g => g.Key)
+             .Select(g => g.Select(a => a.Follow?.Name).ToHashSet()).ToList();
+
+        var full = PullLoader.Load(TestEnv.OnlyPull("dmu_p1_knockback_arrows.log"), null, TestEnv.Registry);
+        var path = Strip("dmu_p1_knockback_arrows.log");
+        var plain = PullLoader.Load(Assert.Single(Index(path).Pulls), null, TestEnv.Registry);
+        Assert.All(plain.Aoes.Where(a => a.ActionId == 0xBAA7 && a.Action != null),
+                   a => Assert.DoesNotContain(a.Action!.Hits, h => h.Target == a.Follow));
+
+        // Where positions allow, the holder is the same as the one the AbilityExtra line names. Here the third holder's
+        // position is ~8y stale without OverlayPlugin's lines, so it stays unknown rather than becoming a soaker.
+        var expected = Holders(full);
+        var found = Holders(plain);
+        Assert.Equal(expected.Count, found.Count);
+        Assert.True(found.Sum(s => s.Count(h => h != null)) >= 5);
+        for (var i = 0; i < found.Count; i++)
+            Assert.Subset(expected[i], found[i].Where(h => h != null).ToHashSet());
+    }
+
+    [Fact]
+    public void AnalyzerDoesNotJudgeArrowsItCannotSee()
+    {
+        var path = Strip("dmu_p1_arrows.log");
+        var r = PullLoader.Load(Assert.Single(Index(path).Pulls), null, TestEnv.Registry);
+        var report = WipeAnalyzer.Analyze(r);
+        Assert.Null(report.Arrows);
+        Assert.DoesNotContain(report.Incidents, i => i.Kind == IncidentKind.ArrowPuzzle);
+    }
+}
+
+public class PackSchemaTests
+{
+    [Fact]
+    public void MitigationPhaseAndOnlyTargetAreValidated()
+    {
+        Assert.ThrowsAny<Exception>(() => EncounterRegistry.Compile("""
+            { "key": "x", "match": { "territoryIds": ["0x1"] },
+              "mitigation": { "mechanics": [ { "id": "m", "name": "m", "phase": "nope", "atS": 1, "hits": ["0x1"] } ] } }
+            """, "t"));
+        Assert.ThrowsAny<Exception>(() => EncounterRegistry.Compile("""
+            { "key": "x", "match": { "territoryIds": ["0x1"] }, "abilities": { "0x1": { "category": "danger", "onlyTarget": true } } }
+            """, "t"));
+        var dmu = TestEnv.Registry.ForTerritory(0x553)!.Def;
+        Assert.Contains(dmu.Mitigation!.Mechanics, m => m.Phase == "p5");
     }
 }

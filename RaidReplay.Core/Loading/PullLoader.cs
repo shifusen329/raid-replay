@@ -419,8 +419,12 @@ internal sealed class PullBuilder : ILineConsumer
 
     private void ticks_Add(TickEvent e) => ticks.Add(e);
 
+    // Whether the log has OverlayPlugin combatant lines (261) at all; without them nothing reports model visibility.
+    private bool combatantLines;
+
     private void RecordMemory(scoped in LineFields f, int t)
     {
+        combatantLines = true;
         var op = f[F261.Op];
         var id = f.Hex(F261.Id);
         if (op.SequenceEqual("Remove"u8))
@@ -582,7 +586,7 @@ internal sealed class PullBuilder : ILineConsumer
 
         foreach (var a in actors)
         {
-            a.Build();
+            a.Build(modelKnown: combatantLines);
             a.Actor.Index = replay.Actors.Count;
             replay.Actors.Add(a.Actor);
         }
@@ -606,6 +610,8 @@ internal sealed class PullBuilder : ILineConsumer
         replay.MapChanges.AddRange(mapChanges.OrderBy(e => e.T));
 
         ActorClassifier.Classify(replay, enc, partyIds);
+        if (!combatantLines)
+            HideReplacedBosses(replay);
         foreach (var id in summary.Party.Select(p => p.Id))
         {
             var actor = replay.Actors.LastOrDefault(a => a.Id == id);
@@ -622,6 +628,21 @@ internal sealed class PullBuilder : ILineConsumer
         AoeInference.Run(replay, enc, data, marks);
         replay.Diagnostics.AddRange(diagnostics);
         return replay;
+    }
+
+    /// <summary>
+    /// Without model visibility (no 261 lines), a boss that is never removed (e.g. P4 Kefka) would stay drawn next to the
+    /// boss that replaces it: hide it once a later boss of the same name spawns.
+    /// </summary>
+    private static void HideReplacedBosses(PullReplay replay)
+    {
+        var bosses = replay.Actors.Where(a => a.Kind == ActorKind.Boss).OrderBy(a => a.SpawnMs).ToList();
+        foreach (var a in bosses)
+        {
+            var next = bosses.FirstOrDefault(b => b != a && b.SpawnMs > a.SpawnMs && b.SpawnMs < a.DespawnMs && b.Name == a.Name);
+            if (next != null && !a.IsHidden(next.SpawnMs))
+                a.HiddenSpans.Add(new MsSpan(next.SpawnMs, int.MaxValue));
+        }
     }
 
     private void BuildCasts(PullReplay replay)
@@ -935,7 +956,7 @@ internal sealed class ActorBuild(Actor actor)
         Pos.Add(new Sample(t, x, y, z, h, rank, flags, order));
     }
 
-    public void Build()
+    public void Build(bool modelKnown = true)
     {
         Pos.Sort((a, b) => a.T != b.T ? a.T.CompareTo(b.T) : a.Order.CompareTo(b.Order));
 
@@ -1124,7 +1145,14 @@ internal sealed class ActorBuild(Actor actor)
         }
 
         if (offSince != null)
+        {
             Actor.UntargetableSpans.Add(new MsSpan(offSince.Value, int.MaxValue));
+
+            // Logs without OverlayPlugin's combatant lines carry no model state: an NPC that goes untargetable for good
+            // (e.g. P1 Kefka once P2 begins) is never removed either, so treat it as gone from then on.
+            if (!modelKnown && !Actor.IsPlayer && Actor.OwnerId == 0)
+                Actor.HiddenSpans.Add(new MsSpan(offSince.Value, int.MaxValue));
+        }
     }
 
     private static bool Same(in Sample a, in Sample b) =>

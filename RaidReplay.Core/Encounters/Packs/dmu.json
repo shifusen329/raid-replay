@@ -1,10 +1,10 @@
 {
   // Dancing Mad (Ultimate). conf: v = verified in ACT logs (2026-09-18..10-06 P1+P2; an FC log of 2026-09-27 for late P2 and
-  // P3 up to Earthquake), i = inferred, d = from guides only.
+  // P3 up to Earthquake; another player's full clear of 2026-10-05 for the rest), i = inferred, d = from guides only.
   "schema": 1,
   "key": "dmu",
   "name": "Dancing Mad (Ultimate)",
-  "notes": "P1 and P2 verified on our logs; late P2 (Trine, Wings, Ultimate Embrace II) and P3 up to Earthquake verified on an FC log (two P3 pulls, 8:35 and 9:30). The rest of P3 (hand slams, black-hole tethers, Blizzard III, towers) and P4-P5 are from the guides.",
+  "notes": "P1 and P2 verified on our logs; late P2 and P3 up to Earthquake on an FC log (two P3 pulls); the rest of P3, P4 and P5 on a full clear (one pull, written without OverlayPlugin lines, so helper-placed AoE positions there are unverified).",
   "match": { "territoryIds": ["0x553"], "mapIds": [79] },
 
   "arena": {
@@ -31,6 +31,10 @@
     { "bnpcBase": 19509, "role": "boss", "label": "Exdeath", "hitbox": 3.8, "conf": "v P3" },
     { "bnpcBase": 19451, "role": "enemy", "label": "Kefka (dash)", "hitbox": 2.7, "conf": "v P3: 8 copies; Ultima Blaster dashes and limit-cut lines" },
     { "bnpcBase": 18475, "role": "helper", "render": false, "conf": "v P3: hidden the whole phase" },
+    { "bnpcBase": 19507, "role": "enemy", "label": "Chaos (P4)", "hitbox": 6.0, "conf": "v P4 12:05-end, casts Inferno/Tsunami from the NW edge; i hitbox = P3 Chaos" },
+    { "bnpcBase": 19510, "role": "enemy", "label": "Neo Exdeath", "hitbox": 6.0, "conf": "v P4 12:05-14:13, casts Grand Cross and Flood of Naught; i hitbox" },
+    { "bnpcBase": 19511, "role": "boss", "label": "Kefka (P5)", "hitbox": 6.0, "conf": "v P5 from 14:13; i hitbox = P1/P4 Kefka (the log gives none)" },
+    { "bnpcBase": 19512, "role": "enemy", "label": "Black Hole", "hitbox": 1.5, "conf": "v P3: 11 per wave (9:39, 10:09, 10:44, 11:19), lasers from the 4 on the cardinals at r17; i hitbox from the guide image" },
     { "bnpcBase": 19505, "role": "emitter", "label": "Graven Image", "render": false, "conf": "v" },
     { "bnpcBase": 9020, "role": "helper", "render": false, "conf": "v" }
   ],
@@ -92,13 +96,43 @@
         { "id": "p3_limit_cut", "name": "Limit cut", "start": { "headMarker": { "ids": ["0x0150", "0x0151", "0x0152", "0x0153", "0x01B5", "0x01B6", "0x01B7", "0x01B8"] } } },
         { "id": "p3_decisive2", "name": "The Decisive Battle II", "start": { "castStart": { "ids": ["0xC2E2"] } } },
         { "id": "p3_earthquake", "name": "Earthquake", "start": { "castStart": { "ids": ["0xC571", "0xC572"] } } },
-        { "id": "p3_giant", "name": "Giant Kefka", "start": { "castStart": { "ids": ["0xBAE7"] } } }
+        { "id": "p3_giant", "name": "Hand slam 1 + black holes (lasers 1-2)", "start": { "castStart": { "ids": ["0xBAE6", "0xBAE7"] } } },
+        { "id": "p3_edict", "name": "Damning Edict + lasers 3-5", "start": { "castStart": { "ids": ["0xBB01"] } } },
+        { "id": "p3_hot_tail", "name": "Hot Tail + lasers 6-8", "start": { "castStart": { "ids": ["0xBAEC", "0xBAED"] } } },
+        { "id": "p3_white_hole", "name": "White Hole + Implosion II + lasers 9-10", "start": { "castStart": { "ids": ["0xBD66"] } } },
+        { "id": "p3_stomp", "name": "Stomp-a-Mole + Knock Down", "start": { "castStart": { "ids": ["0xBB0F", "0xBAEF"] } } },
+        { "id": "p3_enrage", "name": "Meteor (enrage)", "start": { "castStart": { "ids": ["0xC61E"] } } }
       ]
     },
-    { "id": "p4", "name": "P4 Kefka Says", "expectedS": 734, "conf": "d",
-      "start": { "anyOf": [ { "castStart": { "names": ["Kefka Says"] } } ] } },
-    { "id": "p5", "name": "P5 Kefka Reimagined", "expectedS": 862, "conf": "d",
-      "start": { "anyOf": [ { "castStart": { "names": ["Ultima Repeater", "Celestriad"] } } ] } }
+    {
+      // P4 starts when Kefka returns after Chaos and Exdeath die, so it drifts with the P3 kill (12:13 in the clear).
+      "id": "p4", "name": "P4 Kefka Says", "expectedS": 734, "conf": "v",
+      "start": { "anyOf": [ { "castStart": { "ids": ["0xC2DC"] } }, { "castStart": { "names": ["Kefka Says"] } } ] },
+      "segments": [
+        { "id": "p4_grand_cross", "name": "Mystery Magic + Grand Cross + Inferno/Tsunami", "start": { "castStart": { "ids": ["0xBA94"] } } },
+        { "id": "p4_flood", "name": "Flood of Naught", "start": { "castStart": { "ids": ["0xC3A1"] } } },
+        { "id": "p4_mana_charge", "name": "Mana Charge: short stacks, spreads, bombs, gazes", "start": { "castStart": { "ids": ["0xBAA4"] } } },
+        { "id": "p4_blowout", "name": "Blizzard III Blowout: long stacks, spreads, bombs, gazes", "start": { "castStart": { "ids": ["0xBA95"] } } },
+        { "id": "p4_mana_release", "name": "Mana Release", "start": { "castStart": { "ids": ["0xBAA5"] } } },
+        { "id": "p4_upsurge", "name": "Ultima Upsurge (25% check)", "start": { "castStart": { "ids": ["0xC24A"] }, "occurrence": 2 } }
+      ]
+    },
+    {
+      // P5's own timeline starts with the first Ultima Repeater (the sheet's 0:00 is the end of P4, before the cutscene).
+      "id": "p5", "name": "P5 Kefka Reimagined", "expectedS": 895, "conf": "v",
+      "start": { "anyOf": [ { "castStart": { "ids": ["0xBB40"] } }, { "castStart": { "names": ["Ultima Repeater", "Celestriad"] } } ] },
+      "segments": [
+        { "id": "p5_repeater", "name": "Ultima Repeater + Fell Forces", "start": { "castStart": { "ids": ["0xBB40"] } } },
+        { "id": "p5_flood", "name": "Chaotic Flood", "start": { "castStart": { "ids": ["0xC13F"] } } },
+        { "id": "p5_orchestra", "name": "Maddening Orchestra", "start": { "castStart": { "ids": ["0xBB50"] } } },
+        { "id": "p5_celestriad", "name": "Celestriad towers", "start": { "castStart": { "ids": ["0xBB42"] } } },
+        { "id": "p5_repeater2", "name": "Ultima Repeater II", "start": { "castStart": { "ids": ["0xBB40"] } } },
+        { "id": "p5_apocalypse", "name": "Stray Apocalypse + Stray Entropy", "start": { "castStart": { "ids": ["0xBB3B"] } } },
+        { "id": "p5_orchestra2", "name": "Maddening Orchestra II", "start": { "castStart": { "ids": ["0xBB50"] } } },
+        { "id": "p5_forsaken", "name": "Forsaken", "start": { "castStart": { "ids": ["0xBB35"] } } },
+        { "id": "p5_enrage", "name": "Forsaken Null (enrage)", "start": { "castStart": { "ids": ["0xBB3A"] } } }
+      ]
+    }
   ],
 
   "mechanics": [
@@ -130,7 +164,41 @@
     { "id": "p3_vacuum_wave", "label": "Vacuum Wave", "phase": "p3", "trigger": { "castStart": { "ids": ["0xBB13"] } } },
     { "id": "p3_cyclone", "label": "Cyclone (wind stacks)", "phase": "p3", "trigger": { "ability": { "ids": ["0xBAF8"] }, "occurrence": 1 } },
     { "id": "p3_limit_cut", "label": "Limit cut", "phase": "p3", "trigger": { "headMarker": { "ids": ["0x0150"] } }, "durationS": 15 },
-    { "id": "p3_earthquake", "label": "Earthquake / Accretion", "phase": "p3", "trigger": { "castStart": { "ids": ["0xC571"] } }, "durationS": 15 }
+    { "id": "p3_earthquake", "label": "Earthquake / Accretion", "phase": "p3", "trigger": { "castStart": { "ids": ["0xC571"] } }, "durationS": 15 },
+    { "id": "p3_hand_slam", "label": "Hand slam (Slap Happy)", "phase": "p3", "trigger": { "castStart": { "ids": ["0xBAE6", "0xBAE7"] } }, "durationS": 9 },
+    { "id": "p3_black_hole", "label": "Black Hole", "phase": "p3", "trigger": { "castStart": { "ids": ["0xBAFB"] } } },
+    { "id": "p3_damning_edict", "label": "Damning Edict", "phase": "p3", "trigger": { "castStart": { "ids": ["0xBB01"] } }, "durationS": 5 },
+    { "id": "p3_hot_tail", "label": "Hot Tail (Look upon Me and Despair)", "phase": "p3", "trigger": { "castStart": { "ids": ["0xBAEC", "0xBAED"] } }, "durationS": 5 },
+    { "id": "p3_white_hole", "label": "White Hole (max-HP check)", "phase": "p3", "trigger": { "castStart": { "ids": ["0xBD66"] } }, "durationS": 5 },
+    { "id": "p3_blizzard_puddles", "label": "Blizzard III (puddles)", "phase": "p3", "trigger": { "castStart": { "ids": ["0xBB0F"] } }, "durationS": 9 },
+    { "id": "p3_stomp_a_mole", "label": "Stomp-a-Mole (towers)", "phase": "p3", "trigger": { "castStart": { "ids": ["0xBAEF"] } }, "durationS": 10 },
+    { "id": "p3_knock_down", "label": "Knock Down (role stack)", "phase": "p3", "trigger": { "castStart": { "ids": ["0xBB02"] } }, "durationS": 11 },
+    { "id": "p3_deep_freeze", "label": "Blizzard III (keep moving)", "phase": "p3", "trigger": { "castStart": { "ids": ["0xBB11"] } }, "durationS": 4 },
+    { "id": "p3_big_bang", "label": "Big Bang", "phase": "p3", "trigger": { "castStart": { "ids": ["0xBB05"] } }, "durationS": 5 },
+    { "id": "p3_meteor", "label": "Meteor (enrage)", "phase": "p3", "trigger": { "castStart": { "ids": ["0xC61E"] } } },
+    { "id": "p4_mystery_magic", "label": "Mystery Magic", "phase": "p4", "trigger": { "castStart": { "ids": ["0xBA94"] } }, "durationS": 5 },
+    { "id": "p4_grand_cross", "label": "Grand Cross", "phase": "p4", "trigger": { "castStart": { "ids": ["0xBB14"] } }, "durationS": 9 },
+    { "id": "p4_inferno", "label": "Inferno (Entropy on all)", "phase": "p4", "trigger": { "castStart": { "ids": ["0xBB1E"] } }, "durationS": 9 },
+    { "id": "p4_tsunami", "label": "Tsunami (Dynamic Fluid on all)", "phase": "p4", "trigger": { "castStart": { "ids": ["0xBB1F"] } }, "durationS": 9 },
+    { "id": "p4_flood_of_naught", "label": "Flood of Naught (Antilight)", "phase": "p4", "trigger": { "castStart": { "ids": ["0xC3A1"] } }, "durationS": 6 },
+    { "id": "p4_mana_charge", "label": "Mana Charge", "phase": "p4", "trigger": { "castStart": { "ids": ["0xBAA4"] } } },
+    { "id": "p4_death_bolt_1", "label": "Short stacks/spreads + bombs", "phase": "p4", "trigger": { "ability": { "ids": ["0xBB19"] }, "occurrence": 1 } },
+    { "id": "p4_thrumming_thunder", "label": "Thrumming Thunder III (recorded)", "phase": "p4", "trigger": { "castStart": { "ids": ["0xC5DE"] } }, "durationS": 5 },
+    { "id": "p4_shriek_1", "label": "Short Cursed Shrieks (gaze)", "phase": "p4", "trigger": { "ability": { "ids": ["0xBB17"] }, "occurrence": 1 } },
+    { "id": "p4_ultima_upsurge", "label": "Ultima Upsurge", "phase": "p4", "trigger": { "castStart": { "ids": ["0xC24A"] } }, "durationS": 5 },
+    { "id": "p4_blowout", "label": "Blizzard III Blowout (recorded)", "phase": "p4", "trigger": { "castStart": { "ids": ["0xBA95"] } }, "durationS": 5 },
+    { "id": "p4_death_bolt_2", "label": "Long stacks/spreads + bombs", "phase": "p4", "trigger": { "ability": { "ids": ["0xBB19"] }, "occurrence": 3 } },
+    { "id": "p4_shriek_2", "label": "Long Cursed Shrieks (gaze)", "phase": "p4", "trigger": { "ability": { "ids": ["0xBB17"] }, "occurrence": 3 } },
+    { "id": "p4_mana_release", "label": "Mana Release", "phase": "p4", "trigger": { "castStart": { "ids": ["0xBAA5"] } }, "durationS": 12 },
+    { "id": "p5_ultima_repeater", "label": "Ultima Repeater", "phase": "p5", "trigger": { "castStart": { "ids": ["0xBB40"] } }, "durationS": 8 },
+    { "id": "p5_chaotic_flood", "label": "Chaotic Flood", "phase": "p5", "trigger": { "castStart": { "ids": ["0xC13F"] } }, "durationS": 10 },
+    { "id": "p5_maddening_orchestra", "label": "Maddening Orchestra", "phase": "p5", "trigger": { "castStart": { "ids": ["0xBB50"] } }, "durationS": 13 },
+    { "id": "p5_celestriad", "label": "Celestriad (towers)", "phase": "p5", "trigger": { "castStart": { "ids": ["0xBB42"] } }, "durationS": 27 },
+    { "id": "p5_catastrophic_choice", "label": "Catastrophic Choice (in/out)", "phase": "p5", "trigger": { "castStart": { "ids": ["0xC24E"] } }, "durationS": 5 },
+    { "id": "p5_stray_apocalypse", "label": "Stray Apocalypse (exaflares)", "phase": "p5", "trigger": { "castStart": { "ids": ["0xBB3B"] } }, "durationS": 17 },
+    { "id": "p5_stray_entropy", "label": "Stray Entropy (spreads)", "phase": "p5", "trigger": { "castStart": { "ids": ["0xBB3E"] } }, "durationS": 6 },
+    { "id": "p5_forsaken", "label": "Forsaken", "phase": "p5", "trigger": { "castStart": { "ids": ["0xBB35"] } }, "durationS": 45 },
+    { "id": "p5_forsaken_null", "label": "Forsaken Null (enrage)", "phase": "p5", "trigger": { "castStart": { "ids": ["0xBB3A"] } } }
   ],
 
   "abilities": {
@@ -250,7 +318,98 @@
     "0xBAE3": { "label": "Ultima Blaster (Kefka dash)", "category": "raidwide", "shape": { "type": "rect", "length": 22, "backLength": 22, "width": 10, "origin": "point", "point": "center", "heading": "resolution" }, "conf": "v unavoidable, every 2s rotating 45 degrees; i 10y band through the centre (guide image)" },
     "0xBAE4": { "label": "Ultima Blaster (limit-cut line)", "category": "bait", "conf": "v game shape: 6y-wide line through the numbered player, in number order 0.2-0.3s apart" },
     "0xBAE5": { "label": "Max (Kefka turns giant)", "category": "info", "shape": { "type": "none" }, "conf": "v" },
-    "0xBAE7": { "label": "Slap Happy (giant Kefka)", "category": "info", "shape": { "type": "none" }, "conf": "v cast seen at 9:30; never resolved in these logs" }
+    // ---- late P3 (full clear, another player's log of 2026-10-05: no 26x lines, so helper positions are from 20/21 lines) ----
+    "0xBAE6": { "label": "Slap Happy (Kefka's right hand: party stack)", "category": "info", "shape": { "type": "none" }, "conf": "v 9:30: circles down the half on Kefka's right, then Shocking Impact (party stack)" },
+    "0xBAE7": { "label": "Slap Happy (Kefka's left hand: role cones)", "category": "info", "shape": { "type": "none" }, "conf": "v 10:01 and 11:09: circles down the half on Kefka's left, then 3 Shockwave role cones" },
+    "0xBAE8": { "label": "Slap Happy (hand)", "category": "danger", "conf": "v 3 circles 0.6s apart, 10y off Kefka's centre line at -10/0/+10y along it; game shape r13; nobody hit" },
+    "0xBAE9": { "label": "Slap Happy (middle smash)", "category": "danger", "conf": "v game shape r6 at the centre, just before the stack or cones" },
+    "0xBAEA": { "label": "Shocking Impact (party stack cone)", "category": "stack", "conf": "v one cone from the centre at a player, all 8 inside (~560k shared)" },
+    "0xBAEB": { "label": "Shockwave (role cone)", "category": "stack", "shape": { "type": "cone", "radius": 40, "angleDeg": 40, "origin": "caster", "heading": "resolution" },
+      "conf": "v 3 cones from the centre at a tank, a healer and a DPS; 2/2/4 hits. Hits within 15 deg of the axis, misses from 37 deg: 30-70 deg all fit 16/16 (the game's 90 deg gives 10 false hits); 40 drawn" },
+    "0xBAFB": { "label": "Black Hole (Exdeath)", "category": "info", "shape": { "type": "none" }, "conf": "v 11 black holes spawn 3s later" },
+    "0xBAFC": { "label": "Nothingness (black-hole laser)", "category": "bait", "onlyTarget": true, "conf": "v 24 lasers in sets of 1-2-3-3-3-3-3-3-2-1 from the cardinal black holes (r17) at the tethered player; game shape 6y line; the 3rd on a player is lethal (~9.9M) and cleanses Primordial Crust" },
+    "0xBB01": { "label": "Damning Edict (Chaos front half)", "category": "danger", "shape": { "type": "halfRoom", "radius": 40, "origin": "caster", "heading": "resolution" }, "conf": "v Chaos turns to a player during the cast; i half-room in front of him (game rect 60 long x 80 wide); nobody hit" },
+    "0xBAEC": { "label": "Look upon Me and Despair (Hot Tail)", "category": "info", "shape": { "type": "none" }, "conf": "v" },
+    "0xBAED": { "label": "Look upon Me and Despair (Hot Tail)", "category": "info", "shape": { "type": "none" }, "conf": "v" },
+    "0xBAEE": { "label": "Hot Tail (line through the middle)", "category": "danger", "conf": "v game shape: 16y-wide line through the centre along Kefka's facing; nobody hit" },
+    "0xC4BA": { "label": "(Kefka moves)", "category": "ignore", "conf": "v after the 1st Hot Tail" },
+    "0xC533": { "label": "(Kefka moves)", "category": "ignore", "conf": "v after the 2nd Hot Tail" },
+    "0xBD66": { "label": "White Hole (anyone below max HP is petrified)", "category": "raidwide", "conf": "v hits all 8 with no damage" },
+    "0xBB0F": { "label": "Blizzard III (puddles under everyone)", "category": "info", "shape": { "type": "none" }, "conf": "v" },
+    "0xBB0D": { "label": "Blizzard III (puddle)", "category": "bait", "shape": { "type": "circle", "radius": 6, "origin": "castLoc" }, "conf": "v 2 sets of 8, 3s apart; game radius 6 (guide image ~4.5y); positions unverified in a log without 263 lines" },
+    "0xBAEF": { "label": "Stomp-a-Mole", "category": "info", "shape": { "type": "none" }, "conf": "v" },
+    "0xBAF0": { "label": "Stomp-a-Mole (tower, 2)", "category": "tower", "soakers": 2, "shape": { "type": "circle", "radius": 5, "origin": "castLoc" }, "conf": "v 4 towers 1.3s apart alternating 10y either side of Kefka; 2 hits each (validate-shapes 8/8)" },
+    "0xBB02": { "label": "Knock Down (cast)", "category": "info", "shape": { "type": "none" }, "conf": "v head marker 00A1 on the target" },
+    "0xBB03": { "label": "Knock Down (role stack)", "category": "stack", "soakers": 3, "soakGroup": "role", "shape": { "type": "circle", "radius": 6, "origin": "target" },
+      "conf": "v 2 stacks 5.5s apart on the 00A1-marked player, 4 hits each (the marker's role: holder + 3); game shape r6" },
+    "0xBB11": { "label": "Blizzard III (keep moving)", "category": "raidwide", "conf": "v hits all 8; anyone standing still freezes" },
+    "0xBB05": { "label": "Big Bang (cast)", "category": "info", "shape": { "type": "none" }, "conf": "v" },
+    "0xBB06": { "label": "Big Bang (on the stack spot)", "category": "danger", "conf": "v 2 circles r6 in the middle; nobody hit" },
+    "0xC61E": { "label": "Meteor (P3 enrage)", "category": "enrage", "shape": { "type": "none" }, "conf": "v 9.7s cast; cancelled when both bosses died" },
+
+    // ---- P4 (full clear 2026-10-05). Mystery Magic, Thrumming Thunder III, Blizzard III Blowout and Mana Release reuse P1's
+    // real/fake ids (BA98/BA9B/BA9E, BA9F/BAA0/BAA1) and boss head markers 02A3-02A6. Mana Release replays the recorded
+    // casts: Blowout fake (02A3) + ring fake (02A3) -> real ice (BA98); Thunder fake (02A5) + ring real (02A6) -> fake (BAA0 + hidden BAA1).
+    "0xC2DC": { "label": "Kefka Says (P4 start)", "category": "info", "shape": { "type": "none" }, "conf": "v" },
+    "0xBB14": { "label": "Grand Cross (raidwide + debuffs)", "category": "raidwide", "conf": "v x3 15s apart from Neo Exdeath (NE); GC1/GC2: Compressed Water, Forked Lightning, Cursed Shriek, Acceleration Bomb; GC3: Black/White Wound + Allagan Field/Beyond Death" },
+    "0xBB1E": { "label": "Inferno (Chaos: Entropy on all)", "category": "info", "shape": { "type": "none" }, "conf": "v cast from (87.3,87.3)" },
+    "0xBB20": { "label": "Inferno (raidwide)", "category": "raidwide", "conf": "v" },
+    "0xBB1F": { "label": "Tsunami (Chaos: Dynamic Fluid on all)", "category": "info", "shape": { "type": "none" }, "conf": "v" },
+    "0xBB21": { "label": "Tsunami (raidwide)", "category": "raidwide", "conf": "v" },
+    "0xC3A1": { "label": "Flood of Naught", "category": "info", "shape": { "type": "none" }, "conf": "v Neo Exdeath teleports to the wall first (E at (120,100) in the clear)" },
+    "0xC394": { "label": "White Antilight (half)", "category": "info", "conf": "v game shape: 21y-wide half from Neo Exdeath; Allagan Field stands in the colour opposite their Wound, Beyond Death the same (swapped if fake)" },
+    "0xC395": { "label": "Black Antilight (half)", "category": "info", "conf": "v game shape: 21y-wide half; see White Antilight" },
+    "0xC396": { "label": "Edge of Death (middle strip)", "category": "danger", "conf": "v game shape: 2y-wide strip down the middle where the halves overlap; nobody hit" },
+    "0xBB1D": { "label": "Death Surge (Allagan Field goes off)", "category": "raidwide", "conf": "v one per Allagan Field holder, 4s after Flood of Naught; damage = what they took from Antilight" },
+    "0xBAA4": { "label": "Mana Charge (records the next two casts)", "category": "info", "shape": { "type": "none" }, "conf": "v" },
+    "0xC5DE": { "label": "Thrumming Thunder III (recorded for Mana Release)", "category": "info", "shape": { "type": "none" }, "conf": "v lines are BA9F/BAA0/BAA1 as in P1" },
+    "0xBAA5": { "label": "Mana Release (replays the recorded thunder and ice)", "category": "info", "shape": { "type": "none" }, "conf": "v" },
+    "0xBB19": { "label": "Death Bolt (3-player role stack)", "category": "stack", "soakers": 2, "soakGroup": "role", "shape": { "type": "circle", "radius": 8, "origin": "target" },
+      "conf": "v one per role at each resolve (support N, DPS S), 3 hits each; game shape r8" },
+    "0xBB1B": { "label": "Death Wave (spread)", "category": "spread", "shape": { "type": "circle", "radius": 8, "origin": "target" }, "conf": "v one per role at each resolve, 1 hit each; game shape r8" },
+    "0xBB15": { "label": "Death Bomb (Acceleration Bomb went off)", "category": "failure", "shape": { "type": "none" }, "conf": "v 13:48 in the clear: the holder moved or acted; Damage Down on them" },
+    "0xBB17": { "label": "Death Shriek (Cursed Shriek gaze)", "category": "info", "shape": { "type": "none" }, "conf": "v 2 at the short resolve, 2 at the long; hits everyone else for no damage when done right" },
+    "0xC24A": { "label": "Ultima Upsurge", "category": "raidwide", "conf": "v 2nd one is the 25% check before P5" },
+    "0xBB22": { "label": "Stray Flames (Entropy: placed circle)", "category": "danger", "conf": "v game shape r6 where each player stood (under Kefka); run out" },
+    "0xBB25": { "label": "Stray Spray (Dynamic Fluid: placed circle)", "category": "danger", "conf": "v game shape r6 where each player stood; one went off early on a player who was about to die" },
+
+    // ---- P5 (full clear 2026-10-05) ----
+    "0xBB40": { "label": "Ultima Repeater", "category": "info", "shape": { "type": "none" }, "conf": "v" },
+    "0xBB41": { "label": "Ultima Repeater (raidwide x4)", "category": "raidwide", "conf": "v" },
+    "0xC652": { "label": "(Fell Forces auto)", "category": "ignore", "conf": "v Kefka's auto; the hits are C653-C655" },
+    "0xC653": { "label": "Fell Forces (tank stack)", "category": "tankbuster", "shape": { "type": "circle", "radius": 5, "origin": "target" }, "conf": "v both tanks, or the invulned tank alone after Maddening Orchestra; i radius" },
+    "0xC654": { "label": "Fell Forces (healer stack)", "category": "stack", "soakers": 1, "shape": { "type": "circle", "radius": 5, "origin": "target" }, "conf": "v both healers; i radius" },
+    "0xC655": { "label": "Fell Forces (DPS stack)", "category": "stack", "soakers": 3, "soakGroup": "role", "shape": { "type": "circle", "radius": 5, "origin": "target" }, "conf": "v all 4 DPS; i radius" },
+    "0xC13F": { "label": "Flood (Chaotic Flood)", "category": "info", "shape": { "type": "none" }, "conf": "v" },
+    "0xC183": { "label": "Chaotic Flood (line placement)", "category": "ignore", "conf": "v no damage; the lines go off 4.5s later as C269" },
+    "0xC269": { "label": "Flood (line)", "category": "danger", "shape": { "type": "rect", "length": 40, "backLength": 40, "width": 10, "origin": "caster", "heading": "resolution" }, "telegraph": { "mode": "lookback", "s": 4.5 },
+      "conf": "v 4 pairs 1s apart; nobody hit; i shape from the placement (game rect 40x10)" },
+    "0xBB4F": { "label": "Chaotic Flood (party stack)", "category": "stack", "conf": "v x4 on a random player, all 8 inside; game shape r6" },
+    "0xBB50": { "label": "Maddening Orchestra", "category": "info", "shape": { "type": "none" }, "conf": "v" },
+    "0xBB51": { "label": "Maddening Orchestra (2nd hit)", "category": "info", "shape": { "type": "none" }, "conf": "v" },
+    "0xBB52": { "label": "Flare (tankbuster on 1st/2nd enmity)", "category": "tankbuster", "conf": "v game shape r5; gives Surprise Flare / Surprise Holy" },
+    "0xBB54": { "label": "Holy (spread)", "category": "spread", "shape": { "type": "circle", "radius": 5, "origin": "target" }, "conf": "v 3 random non-tanks, then the 3 closest; game shape r5" },
+    "0xBB53": { "label": "Chaotic Flare (shared tankbuster)", "category": "tankbuster", "conf": "v hits both tanks (NAUR's shared buster, not two)" },
+    "0xBB55": { "label": "Flare Diffusion (Surprise Flare)", "category": "tankbuster", "conf": "v game shape r25 on the Flare tank at the wall; hits both tanks (the Holy tank under invuln)" },
+    "0xBB56": { "label": "Chaotic Holy (Surprise Holy)", "category": "tankbuster", "conf": "v ~5.2M on the invulned tank" },
+    "0xBB42": { "label": "Celestriad", "category": "info", "shape": { "type": "none" }, "conf": "v Fire/Ice/Lightning Resistance Down II on 2 players each" },
+    "0xC24E": { "label": "Catastrophic Choice (in/out with the towers)", "category": "info", "shape": { "type": "none" }, "conf": "v x2 (tower sets 1 and 3)" },
+    "0xBB43": { "label": "Fire III (tower, 2)", "category": "tower", "soakers": 2, "shape": { "type": "circle", "radius": 3, "origin": "castLoc" }, "conf": "v 4 towers, 2 hits each; soakers get Fire Resistance Down II" },
+    "0xBB44": { "label": "Blizzard III (tower, 2)", "category": "tower", "soakers": 2, "shape": { "type": "circle", "radius": 3, "origin": "castLoc" }, "conf": "v" },
+    "0xBB45": { "label": "Thunder III (tower, 2)", "category": "tower", "soakers": 2, "shape": { "type": "circle", "radius": 3, "origin": "castLoc" }, "conf": "v" },
+    "0xBB4A": { "label": "Quake (Catastrophic Choice: point-blank)", "category": "danger", "conf": "v nobody hit; game shape r10, but two players stood 6.9y out unhit, so the real radius may be smaller" },
+    "0xBB3B": { "label": "Stray Apocalypse", "category": "info", "shape": { "type": "none" }, "conf": "v" },
+    "0xBB3C": { "label": "Stray Apocalypse (exaflare start)", "category": "danger", "conf": "v 12 = 6 pairs alternating NW/NE, 2.5s apart; game shape r6" },
+    "0xBB3D": { "label": "Stray Apocalypse (exaflare)", "category": "danger", "conf": "v 72 steps; nobody hit" },
+    "0xBB3E": { "label": "Stray Entropy", "category": "info", "shape": { "type": "none" }, "conf": "v" },
+    "0xBB3F": { "label": "Stray Entropy (spread)", "category": "spread", "shape": { "type": "circle", "radius": 5, "origin": "target" }, "conf": "v on all 8, 1 hit each; game shape r5" },
+    "0xBB35": { "label": "Forsaken (raidwide)", "category": "raidwide", "conf": "v starts the enrage sequence" },
+    "0xBB36": { "label": "Forsaken (raidwide)", "category": "raidwide", "conf": "v rounds 2-4" },
+    "0xBB37": { "label": "Forsaken Ground (void)", "category": "danger", "conf": "v 2 per round; lethal and unraisable (Forsaken); game shape r8" },
+    "0xBB38": { "label": "Forsaken (baited puddle)", "category": "danger", "conf": "v 1 per round near a random player; game shape r8" },
+    "0xBB39": { "label": "Forsaken Bonds (party stack)", "category": "stack", "conf": "v 1 per round on the 00A1-marked player, all 8 inside; game shape r6" },
+    "0xBB3A": { "label": "Forsaken Null (enrage)", "category": "enrage", "shape": { "type": "none" }, "conf": "v 25.7s cast; cancelled by the kill" },
+    "0xC61A": { "label": "(end)", "category": "ignore", "conf": "v after the kill" }
   },
 
   "unboundAbilities": [
@@ -286,7 +445,8 @@
     "0x01B5": { "label": "Limit cut 5", "color": "#5080ff", "durationS": 14, "conf": "v" },
     "0x01B6": { "label": "Limit cut 6", "color": "#5080ff", "durationS": 14, "conf": "v" },
     "0x01B7": { "label": "Limit cut 7", "color": "#5080ff", "durationS": 14, "conf": "v" },
-    "0x01B8": { "label": "Limit cut 8", "color": "#5080ff", "durationS": 14, "conf": "v" }
+    "0x01B8": { "label": "Limit cut 8", "color": "#5080ff", "durationS": 14, "conf": "v" },
+    "0x00A1": { "label": "Stack", "color": "#40ff80", "durationS": 5, "conf": "v P3 Knock Down (role stack) and P5 Forsaken" }
   },
 
   "tethers": {
@@ -297,7 +457,9 @@
         "0xBAB6": "Purple tether (Sleep)", "0xBAB5": "Yellow tether (Confused)"
       },
       "conf": "v"
-    }
+    },
+    "0x0054": { "label": "Black-hole laser tether", "maxS": 10, "conf": "v P3: passed between players; the laser (Nothingness) fires at whoever holds it" },
+    "0x0040": { "label": "Exdeath tether (Meteor)", "maxS": 10, "conf": "v P3 11:51 during the enrage cast" }
   },
 
   "statuses": {
@@ -307,20 +469,24 @@
     "0x130E": "Tele-portent: East", "0x13D9": "Tele-portent: East",
     "0x130F": "Tele-portent: West", "0x13DA": "Tele-portent: West",
     "0x13DB": "Spells' Trouble", "0x503": "Confused", "0x131E": "Sleep",
-    "0xB5F": "Damage Down (tower failure)", "0xB7D": "Magic Vulnerability Up"
+    "0xB5F": "Damage Down (tower failure)", "0xB7D": "Magic Vulnerability Up",
+    "0x154C": "Unbecoming (1 laser)", "0x154D": "Meanest Existence (next laser is lethal)", "0x154E": "Primordial Crust",
+    "0x644": "Accretion", "0xBBC": "First in Line", "0xBBD": "Second in Line", "0xBBE": "Third in Line"
   },
 
   "director": {
     "0x80000027": {
       "0x01": "opening line", "0x0A": "voice line @51s", "0x02": "Graven Image II", "0x0B": "puddle puzzle OK",
       "0x03": "Graven Image III", "0x0C": "teleporter puzzle OK", "0x05": "P1 end (puzzle failed)",
-      "0x0D": "P1 end (puzzle OK)", "0x08": "P1 enrage", "0x06": "P2 open (fail path)", "0x0E": "P2 open (ok path)"
+      "0x0D": "P1 end (puzzle OK)", "0x08": "P1 enrage", "0x06": "P2 open (fail path)", "0x0E": "P2 open (ok path)",
+      "0x1B": "P3 Earthquake", "0x1C": "P3 hand slam 1", "0x1D": "P3 Hot Tail 1", "0x1E": "P3 Stomp-a-Mole", "0x2E": "P3 bosses down",
+      "0x1F": "P4 Kefka Says", "0x26": "P5 Ultima Repeater", "0x27": "P5 Celestriad", "0x25": "P5 Stray Apocalypse", "0x28": "P5 Forsaken"
     },
-    "0x80000001": { "0x4F41": "P1 +10s", "0x4F42": "Graven Image II stage", "0x4F43": "Graven Image III stage", "0x4F44": "P2", "0x4F45": "reset" }
+    "0x80000001": { "0x4F41": "P1 +10s", "0x4F42": "Graven Image II stage", "0x4F43": "Graven Image III stage", "0x4F44": "P2", "0x4F45": "P3", "0x4F46": "P5 (after the cutscene)" }
   },
 
   "mitigation": {
-    "source": "Ikuya Mitty DMU mitigation sheet (P1, P2, P3 to Earthquake)",
+    "source": "Ikuya Mitty DMU mitigation sheet (P1-P5)",
     "note": "Reference, not gospel: entries are only flagged when the cooldown was available; the sheet asks for some cooldowns twice within their recast (e.g. D3 party mit at 0:38 and 1:58 with a 120s recast). D1-D4 = M1, M2, R1, R2. Free-text cells (P2 'Assist Tanks') are not checked.",
     "mechanics": [
       { "id": "mystery_magic_1", "name": "Mystery Magic", "atS": 38, "hits": ["0xBAA2", "0xBAA3"], "plan": [
@@ -522,7 +688,254 @@
         { "slot": "AST", "use": ["Macrocosmos"] },
         { "slot": "SCH", "use": ["Sacred Soil"] },
         { "slot": "SGE", "use": ["Kerachole"] },
-        { "slot": "D1", "use": ["Feint"] } ] }
+        { "slot": "D1", "use": ["Feint"] } ] },
+
+      // ---- late P3: checked against a full clear (2026-10-05). Tether sets are timed on the laser (the sheet's time + ~1s);
+      // their raidwide is the earth pulse 1.5s later, 5s apart, hence the narrow window.
+      { "id": "p3_hand_slam_1", "name": "Shocking Impact (hand slam 1)", "atS": 579, "hits": ["0xBAEA", "0xBAEB"], "plan": [
+        { "slot": "MT", "use": ["Reprisal"] },
+        { "slot": "MT", "use": ["@partyMit"], "jobs": ["WAR", "PLD"] },
+        { "slot": "MT", "carry": ["@partyMit"], "jobs": ["GNB", "DRK"] },
+        { "slot": "WHM", "use": ["Plenary Indulgence"] },
+        { "slot": "AST", "use": ["Collective Unconscious"] },
+        { "slot": "SCH", "carry": ["Sacred Soil"] },
+        { "slot": "SGE", "carry": ["Kerachole"] } ] },
+      { "id": "p3_hand_slam_2", "name": "Shockwave (hand slam 2)", "atS": 609, "hits": ["0xBAEA", "0xBAEB"], "plan": [
+        { "slot": "OT", "use": ["@partyMit"], "jobs": ["GNB", "DRK"] },
+        { "slot": "WHM", "use": ["Liturgy of the Bell"] },
+        { "slot": "SCH", "use": ["Expedient", "Summon Seraph", "Sacred Soil"] },
+        { "slot": "SGE", "use": ["Holos", "Kerachole"] },
+        { "slot": "Extras", "use": ["@extra"] } ] },
+      { "id": "p3_tethers_3", "name": "Black Holes II (3rd tether set)", "atS": 617, "windowS": 2.5, "hits": ["0xBAFA"], "plan": [
+        { "slot": "OT", "use": ["@partyMit"], "jobs": ["WAR", "PLD"] },
+        { "slot": "OT", "carry": ["@partyMit"], "jobs": ["GNB", "DRK"] },
+        { "slot": "SCH", "carry": ["Expedient", "Sacred Soil"] },
+        { "slot": "SGE", "carry": ["Holos", "Kerachole"] } ] },
+      { "id": "p3_tethers_4", "name": "Black Holes II (4th tether set)", "atS": 622, "windowS": 2.5, "hits": ["0xBAFA"], "plan": [
+        { "slot": "OT", "carry": ["@partyMit"], "jobs": ["GNB", "DRK"] },
+        { "slot": "SCH", "carry": ["Expedient", "Sacred Soil"] },
+        { "slot": "SGE", "carry": ["Holos"] } ] },
+      { "id": "p3_tethers_5", "name": "Black Holes II (5th tether set)", "atS": 627, "windowS": 2.5, "hits": ["0xBAFA"], "plan": [
+        { "slot": "SCH", "use": ["Fey Illumination"], "carry": ["Expedient"] },
+        { "slot": "SGE", "carry": ["Holos"] } ] },
+      { "id": "p3_thunder_5", "name": "Thunder III (5th set)", "atS": 637, "hits": ["0xBB0C"], "plan": [
+        { "slot": "MT", "use": ["Reprisal"] },
+        { "slot": "WHM", "use": ["Temperance"], "note": "can go on the 6th tether set instead if Chaos and Exdeath are still up" },
+        { "slot": "AST", "use": ["Neutral Sect"], "note": "can go on the 6th tether set instead" },
+        { "slot": "SCH", "use": ["Spreadlo", "Sacred Soil"], "carry": ["Fey Illumination"] },
+        { "slot": "SGE", "use": ["Zoe Shields", "Panhaima", "Kerachole"] },
+        { "slot": "D1", "use": ["Feint"] },
+        { "slot": "D4", "use": ["Addle"] } ] },
+      { "id": "p3_tethers_6", "name": "Black Holes III (6th tether set)", "atS": 651, "windowS": 2.5, "hits": ["0xBAFA"], "plan": [
+        { "slot": "WHM", "use": ["Divine Caress"] },
+        { "slot": "AST", "use": ["Sun Sign"] },
+        { "slot": "SGE", "carry": ["Panhaima"] },
+        { "slot": "D3", "use": ["@partyMit"] } ] },
+      { "id": "p3_hand_slam_3", "name": "Shockwave (hand slam 3)", "atS": 678, "hits": ["0xBAEA", "0xBAEB"], "plan": [
+        { "slot": "WHM", "use": ["Plenary Indulgence"] },
+        { "slot": "AST", "use": ["Collective Unconscious"] },
+        { "slot": "SCH", "use": ["Sacred Soil"] },
+        { "slot": "SGE", "use": ["Kerachole"] } ] },
+      { "id": "p3_stomp", "name": "Stomp-a-Mole + Knock Down", "atS": 706, "hits": ["0xBAF0", "0xBB03"], "plan": [
+        { "slot": "MT", "use": ["Reprisal", "@partyMit"], "note": "Reprisal if holding Chaos, otherwise at the start of P4" },
+        { "slot": "OT", "use": ["Reprisal"], "note": "if holding Chaos, otherwise at the start of P4" },
+        { "slot": "SCH", "use": ["Seraphism", "Sacred Soil"], "note": "Seraphism can move to P4" },
+        { "slot": "SGE", "use": ["Kerachole"] },
+        { "slot": "D1", "use": ["Feint"] } ] },
+
+      // ---- P4: timed from Kefka Says (P4 starts when the P3 bosses die). The clear's hits land a steady ~10s earlier
+      // after Kefka Says than the sheet's phase clock, so these are the clear's offsets.
+      { "id": "p4_grand_cross_1", "name": "Grand Cross", "phase": "p4", "atS": 19, "hits": ["0xBB14"], "plan": [
+        { "slot": "WHM", "use": ["Plenary Indulgence"] },
+        { "slot": "AST", "use": ["Collective Unconscious"] },
+        { "slot": "SCH", "use": ["Spreadlo", "Sacred Soil"] },
+        { "slot": "SGE", "use": ["Kerachole", "Philosophia", "Holos"] },
+        { "slot": "Extras", "use": ["@extra"] } ] },
+      { "id": "p4_inferno_tsunami_1", "name": "Inferno/Tsunami", "phase": "p4", "atS": 24, "hits": ["0xBB20", "0xBB21"], "plan": [
+        { "slot": "WHM", "carry": ["Plenary Indulgence"] },
+        { "slot": "AST", "carry": ["Collective Unconscious"] },
+        { "slot": "SCH", "carry": ["Sacred Soil"] },
+        { "slot": "SGE", "carry": ["Kerachole", "Holos"] },
+        { "slot": "D3", "use": ["@partyMit"] } ] },
+      { "id": "p4_grand_cross_2", "name": "Grand Cross", "phase": "p4", "atS": 34, "hits": ["0xBB14"], "plan": [
+        { "slot": "WHM", "use": ["Temperance"] },
+        { "slot": "AST", "use": ["Neutral Sect"] },
+        { "slot": "SCH", "use": ["Expedient", "Fey Illumination"], "carry": ["Sacred Soil"] },
+        { "slot": "SGE", "use": ["Panhaima"], "carry": ["Holos"] },
+        { "slot": "D3", "carry": ["@partyMit"] } ] },
+      { "id": "p4_inferno_tsunami_2", "name": "Inferno/Tsunami", "phase": "p4", "atS": 39, "hits": ["0xBB20", "0xBB21"], "plan": [
+        { "slot": "OT", "use": ["@partyMit"], "jobs": ["GNB", "DRK"] },
+        { "slot": "WHM", "carry": ["Temperance"] },
+        { "slot": "AST", "use": ["Sun Sign"], "carry": ["Neutral Sect"] },
+        { "slot": "SCH", "use": ["Summon Seraph"], "carry": ["Expedient", "Fey Illumination"] },
+        { "slot": "SGE", "carry": ["Panhaima"] } ] },
+      { "id": "p4_grand_cross_3", "name": "Grand Cross", "phase": "p4", "atS": 49, "hits": ["0xBB14"], "plan": [
+        { "slot": "OT", "use": ["@partyMit"], "jobs": ["WAR", "PLD"] },
+        { "slot": "OT", "carry": ["@partyMit"], "jobs": ["GNB", "DRK"] },
+        { "slot": "WHM", "use": ["Divine Caress"], "carry": ["Temperance"] },
+        { "slot": "AST", "carry": ["Neutral Sect", "Sun Sign"] },
+        { "slot": "SCH", "carry": ["Summon Seraph", "Expedient", "Fey Illumination"] },
+        { "slot": "SGE", "use": ["Zoe Shields"] } ] },
+      { "id": "p4_flood_of_naught", "name": "Flood of Naught", "phase": "p4", "atS": 61.5, "hits": ["0xC394", "0xC395"], "plan": [
+        { "slot": "WHM", "use": ["Liturgy of the Bell"] },
+        { "slot": "AST", "use": ["Macrocosmos"] },
+        { "slot": "SCH", "use": ["Sacred Soil"] },
+        { "slot": "SGE", "use": ["Kerachole"] } ] },
+      { "id": "p4_death_bolt_1", "name": "Death Bolt/Wave (short)", "phase": "p4", "atS": 70, "hits": ["0xBB19", "0xBB1B"], "plan": [
+        { "slot": "MT", "use": ["@partyMit"] },
+        { "slot": "SCH", "carry": ["Sacred Soil"] },
+        { "slot": "SGE", "carry": ["Kerachole"] } ] },
+      { "id": "p4_ultima_upsurge_1", "name": "Ultima Upsurge", "phase": "p4", "atS": 88, "hits": ["0xC24A"], "plan": [
+        { "slot": "MT", "use": ["Reprisal"] },
+        { "slot": "WHM", "use": ["Plenary Indulgence"] },
+        { "slot": "AST", "use": ["Collective Unconscious"] },
+        { "slot": "SCH", "use": ["Sacred Soil"] },
+        { "slot": "SGE", "use": ["Kerachole"] },
+        { "slot": "D1", "use": ["Feint"] },
+        { "slot": "D4", "use": ["Addle"] } ] },
+      { "id": "p4_death_bolt_2", "name": "Death Bolt/Wave (long)", "phase": "p4", "atS": 95, "hits": ["0xBB19", "0xBB1B"], "plan": [
+        { "slot": "WHM", "carry": ["Plenary Indulgence"] },
+        { "slot": "AST", "carry": ["Collective Unconscious"] },
+        { "slot": "SCH", "carry": ["Sacred Soil"] },
+        { "slot": "SGE", "carry": ["Kerachole"] } ] },
+      { "id": "p4_ultima_upsurge_2", "name": "Ultima Upsurge (25% check)", "phase": "p4", "atS": 127, "hits": ["0xC24A"], "plan": [
+        { "slot": "OT", "use": ["Reprisal"] },
+        { "slot": "SCH", "use": ["Sacred Soil"] },
+        { "slot": "SGE", "use": ["Kerachole"] } ] },
+
+      // ---- P5: timed from the first Ultima Repeater cast. The sheet's offsets from its first hit match the clear within ~1s.
+      { "id": "p5_ultima_repeater_1", "name": "Ultima Repeater", "phase": "p5", "atS": 5, "hits": ["0xBB41"], "plan": [
+        { "slot": "MT", "use": ["Reprisal"] },
+        { "slot": "OT", "use": ["@partyMit"], "note": "when Kefka brings his staff down to his right side" },
+        { "slot": "WHM", "use": ["Plenary Indulgence"] },
+        { "slot": "AST", "use": ["Collective Unconscious"] },
+        { "slot": "SCH", "use": ["Spreadlo", "Sacred Soil"] },
+        { "slot": "SGE", "use": ["Zoe Shields", "Holos", "Kerachole"] },
+        { "slot": "D3", "use": ["@partyMit"], "note": "when Kefka brings his staff down to his right side" },
+        { "slot": "Extras", "use": ["@extra"] } ] },
+      { "id": "p5_fell_forces_1", "name": "Fell Forces (3x)", "phase": "p5", "atS": 10, "hits": ["0xC653", "0xC654", "0xC655"], "plan": [
+        { "slot": "MT", "carry": ["Reprisal"] },
+        { "slot": "WHM", "carry": ["Plenary Indulgence"] },
+        { "slot": "AST", "carry": ["Collective Unconscious"] },
+        { "slot": "SCH", "carry": ["Sacred Soil"] },
+        { "slot": "SGE", "carry": ["Holos", "Kerachole"] } ] },
+      { "id": "p5_chaotic_flood", "name": "Chaotic Flood", "phase": "p5", "atS": 22.6, "hits": ["0xBB4F"], "plan": [
+        { "slot": "WHM", "use": ["Temperance"] },
+        { "slot": "AST", "use": ["Neutral Sect"] },
+        { "slot": "SCH", "use": ["Expedient"] },
+        { "slot": "SGE", "use": ["Panhaima"], "carry": ["Holos"] } ] },
+      { "id": "p5_orchestra_1", "name": "Maddening Orchestra", "phase": "p5", "atS": 35.6, "hits": ["0xBB52", "0xBB54"], "plan": [
+        { "slot": "OT", "use": ["Reprisal"] },
+        { "slot": "WHM", "use": ["Divine Caress"], "carry": ["Temperance"] },
+        { "slot": "AST", "use": ["Sun Sign"] },
+        { "slot": "SCH", "use": ["Sacred Soil", "Fey Illumination"], "carry": ["Expedient"] },
+        { "slot": "SGE", "use": ["Kerachole"] },
+        { "slot": "D2", "use": ["Feint"] } ] },
+      { "id": "p5_fell_forces_2", "name": "Fell Forces (2x)", "phase": "p5", "atS": 47, "hits": ["0xC653", "0xC654", "0xC655"], "plan": [
+        { "slot": "OT", "carry": ["Reprisal"] },
+        { "slot": "AST", "carry": ["Sun Sign"] },
+        { "slot": "SCH", "carry": ["Sacred Soil", "Fey Illumination"] },
+        { "slot": "SGE", "carry": ["Kerachole"] },
+        { "slot": "D2", "carry": ["Feint"] } ] },
+      { "id": "p5_celestriad", "name": "Celestriad", "phase": "p5", "atS": 65.6, "hits": ["0xBB43", "0xBB44", "0xBB45"], "plan": [
+        { "slot": "MT", "use": ["@partyMit"] },
+        { "slot": "SCH", "use": ["Summon Seraph"], "note": "during the Celestriad cast" } ] },
+      { "id": "p5_ultima_repeater_2", "name": "Ultima Repeater", "phase": "p5", "atS": 87, "hits": ["0xBB41"], "plan": [
+        { "slot": "MT", "use": ["Reprisal"] },
+        { "slot": "OT", "use": ["@partyMit"] },
+        { "slot": "WHM", "use": ["Plenary Indulgence"] },
+        { "slot": "AST", "use": ["Collective Unconscious"] },
+        { "slot": "SCH", "use": ["Sacred Soil"] },
+        { "slot": "SGE", "use": ["Kerachole"] },
+        { "slot": "D1", "use": ["Feint"], "note": "after the third towers resolve" },
+        { "slot": "D3", "use": ["@partyMit"] },
+        { "slot": "D4", "use": ["Addle"], "note": "after the third towers resolve" } ] },
+      { "id": "p5_fell_forces_3", "name": "Fell Forces (2x)", "phase": "p5", "atS": 92, "hits": ["0xC653", "0xC654", "0xC655"], "plan": [
+        { "slot": "MT", "carry": ["Reprisal"] },
+        { "slot": "OT", "carry": ["@partyMit"] },
+        { "slot": "WHM", "carry": ["Plenary Indulgence"] },
+        { "slot": "AST", "carry": ["Collective Unconscious"] },
+        { "slot": "SCH", "carry": ["Sacred Soil"] },
+        { "slot": "SGE", "carry": ["Kerachole"] },
+        { "slot": "D1", "carry": ["Feint"] },
+        { "slot": "D3", "carry": ["@partyMit"] },
+        { "slot": "D4", "carry": ["Addle"] } ] },
+      { "id": "p5_stray_entropy", "name": "Stray Entropy", "phase": "p5", "atS": 118.5, "hits": ["0xBB3F"], "plan": [
+        { "slot": "OT", "use": ["Reprisal"], "note": "two GCDs after the Stray Apocalypse cast so it is back for Forsaken" } ] },
+      { "id": "p5_orchestra_2", "name": "Maddening Orchestra", "phase": "p5", "atS": 127.7, "hits": ["0xBB52", "0xBB54"], "plan": [
+        { "slot": "SCH", "use": ["Sacred Soil"] },
+        { "slot": "SGE", "use": ["Kerachole"] } ] },
+      { "id": "p5_forsaken_1", "name": "Forsaken (1st hit)", "phase": "p5", "atS": 156.5, "windowS": 2, "hits": ["0xBB35", "0xBB36"], "plan": [
+        { "slot": "MT", "use": ["Reprisal", "@partyMit"] },
+        { "slot": "WHM", "use": ["Temperance", "Liturgy of the Bell"] },
+        { "slot": "AST", "use": ["Neutral Sect", "Collective Unconscious"] },
+        { "slot": "SCH", "use": ["Spreadlo", "Fey Illumination", "Sacred Soil"] },
+        { "slot": "SGE", "use": ["Zoe Shields", "Holos", "Kerachole"] },
+        { "slot": "D2", "use": ["Feint"] },
+        { "slot": "Extras", "use": ["@extra"] } ] },
+      { "id": "p5_forsaken_2", "name": "Forsaken Bonds (2nd hit)", "phase": "p5", "atS": 161.6, "windowS": 2, "hits": ["0xBB39"], "plan": [
+        { "slot": "MT", "carry": ["Reprisal"] },
+        { "slot": "MT", "carry": ["@partyMit"], "jobs": ["GNB", "DRK"] },
+        { "slot": "WHM", "carry": ["Temperance"] },
+        { "slot": "AST", "carry": ["Neutral Sect", "Collective Unconscious"] },
+        { "slot": "SCH", "use": ["Seraphism"], "carry": ["Fey Illumination", "Sacred Soil"] },
+        { "slot": "SGE", "use": ["Philosophia"], "carry": ["Holos", "Kerachole"] },
+        { "slot": "D2", "carry": ["Feint"] } ] },
+      { "id": "p5_forsaken_3", "name": "Forsaken (3rd hit)", "phase": "p5", "atS": 164.7, "windowS": 2, "hits": ["0xBB35", "0xBB36"], "plan": [
+        { "slot": "MT", "carry": ["Reprisal"] },
+        { "slot": "MT", "carry": ["@partyMit"], "jobs": ["GNB", "DRK"] },
+        { "slot": "WHM", "carry": ["Temperance"] },
+        { "slot": "AST", "use": ["Macrocosmos"], "carry": ["Neutral Sect", "Collective Unconscious"] },
+        { "slot": "SCH", "use": ["Expedient"], "carry": ["Fey Illumination", "Sacred Soil"] },
+        { "slot": "SGE", "use": ["Panhaima"], "carry": ["Holos", "Kerachole"] },
+        { "slot": "D2", "carry": ["Feint"] } ] },
+      { "id": "p5_forsaken_4", "name": "Forsaken Bonds (4th hit)", "phase": "p5", "atS": 169.8, "windowS": 2, "hits": ["0xBB39"], "plan": [
+        { "slot": "MT", "carry": ["Reprisal"] },
+        { "slot": "MT", "carry": ["@partyMit"], "jobs": ["GNB", "DRK"] },
+        { "slot": "WHM", "carry": ["Temperance"] },
+        { "slot": "AST", "carry": ["Neutral Sect"] },
+        { "slot": "SCH", "carry": ["Fey Illumination", "Expedient"] },
+        { "slot": "SGE", "carry": ["Holos", "Panhaima"] },
+        { "slot": "D2", "carry": ["Feint"] } ] },
+      { "id": "p5_forsaken_5", "name": "Forsaken (5th hit)", "phase": "p5", "atS": 172.9, "windowS": 2, "hits": ["0xBB35", "0xBB36"], "plan": [
+        { "slot": "OT", "use": ["Reprisal", "@partyMit"] },
+        { "slot": "WHM", "use": ["Divine Caress"], "carry": ["Temperance"] },
+        { "slot": "AST", "use": ["Sun Sign"] },
+        { "slot": "SCH", "carry": ["Expedient"] },
+        { "slot": "SGE", "carry": ["Holos", "Panhaima"] },
+        { "slot": "D1", "use": ["Feint"] },
+        { "slot": "D3", "use": ["@partyMit"] },
+        { "slot": "D4", "use": ["Addle"] } ] },
+      { "id": "p5_forsaken_6", "name": "Forsaken Bonds (6th hit)", "phase": "p5", "atS": 177.9, "windowS": 2, "hits": ["0xBB39"], "plan": [
+        { "slot": "OT", "carry": ["Reprisal"] },
+        { "slot": "OT", "carry": ["@partyMit"], "jobs": ["GNB", "DRK"] },
+        { "slot": "WHM", "use": ["Plenary Indulgence"] },
+        { "slot": "AST", "carry": ["Sun Sign"] },
+        { "slot": "SCH", "carry": ["Expedient"] },
+        { "slot": "SGE", "carry": ["Panhaima"] },
+        { "slot": "D1", "carry": ["Feint"] },
+        { "slot": "D3", "carry": ["@partyMit"] },
+        { "slot": "D4", "carry": ["Addle"] } ] },
+      { "id": "p5_forsaken_7", "name": "Forsaken (7th hit)", "phase": "p5", "atS": 181, "windowS": 2, "hits": ["0xBB35", "0xBB36"], "plan": [
+        { "slot": "OT", "carry": ["Reprisal"] },
+        { "slot": "OT", "carry": ["@partyMit"], "jobs": ["GNB", "DRK"] },
+        { "slot": "WHM", "carry": ["Plenary Indulgence"] },
+        { "slot": "AST", "carry": ["Sun Sign"] },
+        { "slot": "SCH", "use": ["Summon Seraph"] },
+        { "slot": "SGE", "carry": ["Panhaima"] },
+        { "slot": "D1", "carry": ["Feint"] },
+        { "slot": "D3", "carry": ["@partyMit"] },
+        { "slot": "D4", "carry": ["Addle"] } ] },
+      { "id": "p5_forsaken_8", "name": "Forsaken Bonds (8th hit)", "phase": "p5", "atS": 186.1, "windowS": 2, "hits": ["0xBB39"], "plan": [
+        { "slot": "OT", "carry": ["Reprisal"] },
+        { "slot": "OT", "carry": ["@partyMit"], "jobs": ["GNB", "DRK"] },
+        { "slot": "WHM", "carry": ["Plenary Indulgence"] },
+        { "slot": "AST", "carry": ["Sun Sign"] },
+        { "slot": "SCH", "use": ["Sacred Soil"], "carry": ["Summon Seraph"] },
+        { "slot": "SGE", "use": ["Kerachole"] },
+        { "slot": "D1", "carry": ["Feint"] },
+        { "slot": "D3", "carry": ["@partyMit"] },
+        { "slot": "D4", "carry": ["Addle"] } ] }
     ]
   },
 
@@ -558,5 +971,5 @@
     "conf": "v 21 clean pulls: 16 slots on a ±12 square, 6y apart, clockwise; a Confused player is chained through at most 4 arrows (#37 stops on an unused 5th); a landing 2.3y from an arrow does not chain (#43). Dropping an arrow on an existing one (≲4y) removes both."
   },
 
-  "failureActions": ["0xBAAB", "0xBAAD", "0xBABF", "0xBABB"]
+  "failureActions": ["0xBAAB", "0xBAAD", "0xBABF", "0xBABB", "0xBB15"]
 }

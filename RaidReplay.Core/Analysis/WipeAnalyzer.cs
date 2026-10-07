@@ -25,7 +25,7 @@ public static class WipeAnalyzer
 
         FindDeaths(r, report);
         FindFailureActions(r, report);
-        FindMechanicMisses(r, report, groups);
+        FindMechanicMisses(r, report, groups, profile);
         FindArrowPuzzle(r, report);
         FindBaitLandings(r, report);
         FindCleansePulses(r, report);
@@ -42,7 +42,7 @@ public static class WipeAnalyzer
 
         PickRootCause(r, report);
         report.Phase = r.PhaseAt(endMs);
-        report.Segment = r.Phases.LastOrDefault(p => p.IsSegment && p.StartMs <= endMs)?.Name;
+        report.Segment = SegmentAt(r, endMs);
         Summarize(r, report);
         return report;
     }
@@ -288,16 +288,25 @@ public static class WipeAnalyzer
                     BlameContact(r, inc, cause, label, a.T);
                 else
                     BlameStandingInHazard(r, inc, a.T);
+
+                // A failure that only hit one or two players went off on them (e.g. a bomb debuff set off by moving).
+                var victims = batch.SelectMany(b => b.Hits).Where(h => h.Target.IsPlayer).Select(h => h.Target).Distinct().ToList();
+                if (inc.Players.Count == 0 && victims.Count is 1 or 2)
+                {
+                    inc.Players.AddRange(victims);
+                    inc.Detail += $" ({string.Join(", ", victims.Select(v => v.Name))})";
+                }
             }
 
             report.Incidents.Add(inc);
         }
 
-        // Enrage casts (cast start) are a clearer signal than the hit.
+        // Enrage casts (cast start) are a clearer signal than the hit. One cut short (the bosses died) is no enrage.
         foreach (var c in r.Casts)
         {
             var def = r.Encounter?.AbilityFor(c.ActionId, c.Name);
-            if (def?.Category != "enrage" || report.Incidents.Any(i => i.Kind == IncidentKind.Enrage) || c.StartMs > r.EndMs)
+            if (def?.Category != "enrage" || c.Outcome == CastOutcome.Cancelled ||
+                report.Incidents.Any(i => i.Kind == IncidentKind.Enrage) || c.StartMs > r.EndMs)
                 continue;
             report.Incidents.Add(new Incident
             {
@@ -533,12 +542,16 @@ public static class WipeAnalyzer
 
     private static string BossHpText(PullReplay r, int t)
     {
-        var boss = r.Actors.Where(x => x.Kind == ActorKind.Boss && x.IsPresent(t)).OrderByDescending(x => x.MaxHp).FirstOrDefault();
-        if (boss is not { MaxHp: > 0 })
+        // The bosses the party was hitting (e.g. both Chaos and Exdeath, not the untargetable giant Kefka behind them).
+        var present = r.Actors.Where(x => x.Kind == ActorKind.Boss && x.IsPresent(t) && x.MaxHp > 0).ToList();
+        var attacked = r.Actions.Where(a => a.Source.IsPlayer && a.T <= t && a.T >= t - 30000)
+                        .SelectMany(a => a.Hits).Where(h => h.Damage > 0).Select(h => h.Target).Where(present.Contains).Distinct().ToList();
+        var bosses = attacked.Count > 0 ? attacked : present.OrderByDescending(x => x.MaxHp).Take(1).ToList();
+        if (bosses.Count == 0)
             return string.Empty;
-        var pct = 100.0 * boss.Hp.At(t) / boss.MaxHp;
+        var hp = string.Join(", ", bosses.OrderByDescending(b => b.MaxHp).Select(b => $"{b.DisplayName} at {100.0 * b.Hp.At(t) / b.MaxHp:0.0}%"));
         var deadDps = r.Deaths.Count(d => d.Victim.IsPlayer && d.T < t && (d.RaisedMs < 0 || d.RaisedMs > t));
-        return $"DPS check failed: {boss.DisplayName} at {pct:0.0}% HP when the enrage began" +
+        return $"DPS check failed: {hp} HP when the enrage began" +
                (deadDps > 0 ? $"; {deadDps} player(s) dead at the time" : "") +
                (DpsLoss(r, t) is { Length: > 0 } loss ? $". {loss}" : "");
     }
@@ -555,7 +568,7 @@ public static class WipeAnalyzer
         }
     }
 
-    private static void FindMechanicMisses(PullReplay r, WipeReport report, List<MechanicGroup> groups)
+    private static void FindMechanicMisses(PullReplay r, WipeReport report, List<MechanicGroup> groups, PositionProfile? profile)
     {
         foreach (var g in groups)
         {
@@ -567,12 +580,15 @@ public static class WipeAnalyzer
             // their own at this moment are judged by the spread-overlap check instead.
             var spreadOwners = g.Aoes.Where(a => a.Category == AoeCategory.Spread && a.Action != null).Select(a => SpreadOwner(r, a))
                                 .Where(o => o != null).ToHashSet();
-            foreach (var a in g.Aoes.Where(a => a.Category is AoeCategory.Danger or AoeCategory.HiddenDanger or AoeCategory.Tankbuster or AoeCategory.Spread &&
-                                                a.Action != null))
+            foreach (var a in g.Aoes.Where(a => (a.Category is AoeCategory.Danger or AoeCategory.HiddenDanger or AoeCategory.Tankbuster or AoeCategory.Spread ||
+                                                 (a.Category == AoeCategory.Bait && SoakDef(r, a)?.OnlyTarget == true)) && a.Action != null))
             {
                 // Proximity damage reaches everyone; only a big hit means standing too close.
                 var proximity = SoakDef(r, a)?.Proximity == true;
-                var owner = a.Category == AoeCategory.Spread ? SpreadOwner(r, a) : null;
+                var owner = a.Category == AoeCategory.Spread ? SpreadOwner(r, a) :
+                            a.Category == AoeCategory.Bait ? a.Action!.PrimaryTarget ?? a.Follow : null;
+                if (a.Category == AoeCategory.Bait && owner == null)
+                    continue;
                 foreach (var h in a.Action!.Hits)
                 {
                     if (!h.Target.IsPlayer || (h.Damage <= 0 && !h.InstantDeath && !h.Knockback))
@@ -583,12 +599,14 @@ public static class WipeAnalyzer
                         continue;
                     if (a.Category == AoeCategory.Spread && (owner == null || h.Target == owner || spreadOwners.Contains(h.Target)))
                         continue;
+                    if (a.Category == AoeCategory.Bait && h.Target == owner)
+                        continue;
                     var inc = new Incident
                     {
                         Kind = IncidentKind.AvoidableHit,
                         T = a.ResolveMs,
                         Title = a.Category == AoeCategory.Tankbuster ? $"{h.Target.Name} cleaved by {a.Label}" :
-                                a.Category == AoeCategory.Spread ? $"{h.Target.Name} hit by {owner!.Name}'s {a.Label}" : $"{h.Target.Name} hit by {a.Label}",
+                                a.Category is AoeCategory.Spread or AoeCategory.Bait ? $"{h.Target.Name} hit by {owner!.Name}'s {a.Label}" : $"{h.Target.Name} hit by {a.Label}",
                         Detail = $"{h.Damage:N0} damage" + (h.MaxHp > 0 ? $" ({100.0 * h.Damage / h.MaxHp:0}% max HP)" : "") +
                                  (a.Category == AoeCategory.HiddenDanger ? " — the hidden (real) one" : ""),
                         Severity = 2,
@@ -620,19 +638,45 @@ public static class WipeAnalyzer
                     Severity = 3,
                 };
                 inc.Aoes.AddRange(cluster);
-                inc.Players.AddRange(soakers);
                 var maxHit = cluster.SelectMany(x => x.Action!.Hits).Where(h => h.Target.IsPlayer).Select(h => h.Damage).DefaultIfEmpty(0).Max();
                 var detail = new StringBuilder();
                 if (soakers.Count > 0)
                     detail.Append($"Inside: {string.Join(", ", soakers.Select(p => p.Name))} (up to {maxHit:N0} damage each). ");
-                var busy = BusySoakers(g);
-                var free = alive.Where(p => !busy.Contains(p)).Select(p => (p, d: Dist(p, a.ResolveMs, origin)))
-                                .Where(x => x.d >= 0).OrderBy(x => x.d).Take(Math.Max(1, a.Soakers - soakers.Count)).ToList();
-                if (free.Count > 0)
-                    detail.Append("Nearest free players: " + string.Join(", ", free.Select(x => $"{x.p.Name} ({x.d:0.0}y)")));
+
+                // The players who were inside did their job: the blame goes to whoever belonged in it and wasn't. Prefer the
+                // players who usually stand in this soak at this moment in good pulls; otherwise the nearest free players.
+                var needed = Math.Max(1, a.Soakers - soakers.Count);
+                var missing = new List<(Actor P, float D, string Why)>();
+                if (profile != null)
+                {
+                    foreach (var p in alive.Where(p => !soakers.Contains(p)))
+                    {
+                        var learned = profile.Query(g.Phase, g.PhaseSecond, g.Variant, p.Name, p.Job, r.Summary.Key);
+                        if (learned is { } l && Vector2.Distance(l.Pos, origin) <= a.Shape.Radius + 2.5f)
+                            missing.Add((p, Dist(p, a.ResolveMs, origin), $"usually soaks it, {l.Count} good pulls"));
+                    }
+
+                    missing = missing.OrderBy(x => x.D).Take(needed).ToList();
+                }
+
+                if (missing.Count == 0)
+                {
+                    var busy = BusySoakers(g);
+                    missing = alive.Where(p => !busy.Contains(p) && !soakers.Contains(p)).Select(p => (p, d: Dist(p, a.ResolveMs, origin), why: "nearest free player"))
+                                   .Where(x => x.d >= 0).OrderBy(x => x.d).Take(needed).ToList();
+                }
+
+                if (missing.Count > 0)
+                {
+                    detail.Append($"Missing from it: {string.Join(", ", missing.Select(x => $"{x.P.Name} ({x.D:0.0}y away, {x.Why})"))}");
+                    foreach (var (p, _, _) in missing)
+                    {
+                        inc.Players.Add(p);
+                        inc.Expected[p] = (origin, ExpectedSource.Soak, $"needed in the {a.Label}");
+                    }
+                }
+
                 inc.Detail = detail.ToString().TrimEnd();
-                foreach (var (p, _) in free)
-                    inc.Expected[p] = (origin, ExpectedSource.Soak, $"needed in the {a.Label}");
                 report.Incidents.Add(inc);
             }
 
@@ -1031,6 +1075,24 @@ public static class WipeAnalyzer
                             : alive.Where(p => p != holder && !others.Contains(p) && stacks.All(x => (x.ExcludeActor ?? x.Follow) != p)).ToList();
             var missing = group.Where(p => !soakers.Contains(p)).Select(p => (p, d: Dist(p, a.ResolveMs, origin)))
                                .OrderBy(x => x.d).Take(a.Soakers - soakers.Count).ToList();
+
+            // Nobody took it and the role-mates stood together out of its reach: the holder left the group.
+            Vector2? groupSpot = null;
+            if (holder != null && def?.SoakGroup == "role" && soakers.Count == 0 && group.Count >= 2)
+            {
+                var at = group.Select(p => p.Track.TrySample(a.ResolveMs, out var pos, out _) ? pos : (Vector2?)null)
+                              .Where(p => p != null).Select(p => p!.Value).ToList();
+                if (at.Count >= 2)
+                {
+                    var mid = at.Aggregate(Vector2.Zero, (s, p) => s + p) / at.Count;
+                    if (at.All(p => Vector2.Distance(p, mid) <= 4.5f) && Vector2.Distance(origin, mid) > a.Shape.Radius + 1.5f)
+                    {
+                        groupSpot = mid;
+                        missing = [];
+                    }
+                }
+            }
+
             var dead = soakers.Where(p => DiedTo(p, a)).ToList();
             var spots = StackPositions.For(r, a);
             var maxHit = a.Action.Hits.Where(h => h.Target.IsPlayer && h.Target != holder).Select(h => h.Damage).DefaultIfEmpty(0).Max();
@@ -1050,6 +1112,15 @@ public static class WipeAnalyzer
             {
                 detail.Append($"Missing from the stack: {string.Join(", ", missing.Select(x => $"{x.p.Name} ({x.d:0.0}y away)"))}" +
                               (def?.SoakGroup == "role" && holder != null ? $" — {(StackPositions.IsSupport(holder) ? "supports" : "DPS")} take {holder.Name}'s. " : ". "));
+            }
+
+            if (groupSpot is { } gs)
+            {
+                var mates = StackPositions.IsSupport(holder!) ? "supports" : "DPS";
+                detail.Append($"{holder!.Name} took it {Vector2.Distance(origin, gs):0.0}y away from the other {mates}, who stood together at ({gs.X:0.0},{gs.Y:0.0}). ");
+                inc.Players.Add(holder);
+                inc.Expected[holder] = (gs, ExpectedSource.Soak, $"with the other {mates} for {a.Label}");
+                blamed.Add(holder);
             }
 
             if (def?.SoakGroup == "role" && holder != null)
@@ -1234,6 +1305,9 @@ public static class WipeAnalyzer
 
     private static void PickRootCause(PullReplay r, WipeReport report)
     {
+        // A clear has nothing to explain; its incidents are still listed.
+        if (r.Summary.Outcome == PullOutcome.Clear)
+            return;
         var enrage = report.Incidents.FirstOrDefault(i => i.Kind == IncidentKind.Enrage);
 
         // Damage Down resets are deliberate, but they still cost raises (8s hardcasts without Swiftcast) and can remove
@@ -1328,7 +1402,8 @@ public static class WipeAnalyzer
         var boss = s.BossHpPct >= 0 ? $", boss {s.BossHpPct:0.0}%" : "";
         report.ChatLine = $"[Raid Replay] {s.Outcome} #{s.Ordinal} {duration} ({where}){boss}, {deaths} death(s). " +
                           (root != null ? $"Root cause {FormatMs(root.T)}: {root.Title}" + (root.Detail.Length > 0 ? $" — {root.Detail}" : "") : "");
-        var misses = report.Incidents.SelectMany(i => i.Snapshot).Where(p => p.Involved && p.MissDistance > 1.5f).ToList();
+        // Positioning notes belong to the root cause only (other incidents carry their own snapshots).
+        var misses = (root?.Snapshot ?? []).Where(p => p.Involved && p.MissDistance > 1.5f).OrderByDescending(p => p.MissDistance).ToList();
         foreach (var m in misses.Take(4))
             report.Notes.Add($"{m.Player.Name}: {m.MissDistance:0.0}y from {Describe(m.ExpectedSource)}{(m.ExpectedNote != null ? $" ({m.ExpectedNote})" : "")}");
     }
@@ -1443,8 +1518,12 @@ public static class WipeAnalyzer
         var m = r.Mechanics.LastOrDefault(m => m.T <= t + 500 && t - m.T <= Math.Max(15000, m.DurationMs));
         if (m != null)
             return m.Label;
-        return r.Phases.LastOrDefault(p => p.IsSegment && p.StartMs <= t)?.Name;
+        return SegmentAt(r, t);
     }
+
+    // A segment ends with its phase: a later phase without segments of its own has none.
+    private static string? SegmentAt(PullReplay r, int t) =>
+        r.Phases.LastOrDefault(p => p.IsSegment && p.StartMs <= t && (p.EndMs <= p.StartMs || t <= p.EndMs))?.Name;
 
     public static string FormatMs(int ms) => $"{ms / 60000}:{Math.Abs(ms) / 1000 % 60:00}";
 }

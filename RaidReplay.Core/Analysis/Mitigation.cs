@@ -206,6 +206,19 @@ public static class MitigationChecker
         foreach (var m in plan.Mechanics)
         {
             var at = (int)(m.AtS * 1000);
+            if (m.Phase != null)
+            {
+                // Timed from a phase start (phases that begin on a kill drift against the pull clock).
+                var phase = r.Phases.FirstOrDefault(p => !p.IsSegment && p.Id == m.Phase);
+                if (phase == null)
+                {
+                    times[m] = (int.MaxValue, false);
+                    continue;
+                }
+
+                at += phase.StartMs;
+            }
+
             var window = (int)(m.WindowS * 1000);
             var hit = r.Actions.FirstOrDefault(a => !a.Source.IsPlayer && Math.Abs(a.T - at) <= window && a.Hits.Any(h => h.Target.IsPlayer && h.Damage > 0) &&
                                                     (m.Hits.Any(h => h.Value == a.ActionId) ||

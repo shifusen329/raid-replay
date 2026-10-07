@@ -2,6 +2,47 @@
 
 Notable changes to Raid Replay. Versions match the plugin version shown in `/xlplugins`.
 
+## [0.0.3] - 2026-10-06
+
+### Added
+
+- **The rest of Dancing Mad (Ultimate): late Phase 3, Phase 4 and Phase 5,** checked against a full clear.
+  - New timeline sections:
+    - **Late P3:** hand slams and black holes, Damning Edict, Hot Tail, White Hole + Implosion II, Stomp-a-Mole + Knock Down, and the Meteor enrage.
+    - **P4:** Mystery Magic + Grand Cross, Flood of Naught, Mana Charge, Blizzard III Blowout, Mana Release, and Ultima Upsurge.
+    - **P5:** Ultima Repeater, Chaotic Flood, Maddening Orchestra, Celestriad, Stray Apocalypse, Forsaken, and Forsaken Null.
+  - Every attack in these phases has a name, a shape and a type. Black holes, P4's Chaos and Neo Exdeath, and P5's Kefka are drawn. The laser tethers and stack markers are labelled.
+  - The mitigation sheet is checked through P5. P4 and P5 entries are timed from the start of their phase, because P4 begins whenever the P3 bosses die.
+- **New wipe explanations:**
+  - **Black-hole laser:** a laser that passes through anyone other than its tethered player.
+  - **Acceleration Bomb:** a bomb that goes off (Death Bomb) names its holder.
+- **Logs written without OverlayPlugin are read.** Some players' ACT setups don't write OverlayPlugin's extra lines.
+  - Pulls in these logs are found and replayed.
+  - Bosses the log never removes are hidden once they leave the fight, so only one Kefka is drawn at a time (P1 Kefka after P2 starts, P4 Kefka in P5).
+  - Analysis that needs those lines is skipped instead of guessed, such as the arrow puzzle and the confetti holder when it can't be placed.
+  - Expect less precise positions in these logs.
+- **Encounter packs** have two new fields:
+  - `onlyTarget` marks a bait aimed at one player, so anyone else it hits took an avoidable hit;
+  - `phase` on a mitigation entry times it from that phase's start instead of the pull start.
+
+### Changed
+
+- **Role stack nobody took:** when the rest of the role stood together out of its reach, the holder who left the group is blamed, not the players who stayed. One example is a confetti holder 9 y away from the other supports.
+- **Enrage message:** it now gives the HP of the bosses you were attacking, such as Chaos and Exdeath in P3, not the largest boss on the field.
+- **Log index:** the index format changed, so the first launch re-indexes your log folder once.
+
+### Fixed
+
+- **Tower blame:** an under-soaked tower blamed the player who **was** in it. It now blames whoever belonged in it and wasn't:
+  - by default, the player who usually stands in that tower at that moment in your good pulls;
+  - otherwise, the nearest free player.
+
+  The players inside are still listed in the detail.
+- **Positioning notes:** the notes under the root cause mixed in notes from other incidents, for example arrow spots from an earlier mechanic under a later tower. They now come from the root cause only.
+- **Clears:** a clear showed a root cause, for example "DPS check" from P3's Meteor, a cast the kill cut short. Clears now read "Clear", and a cancelled enrage cast doesn't count as an enrage.
+- **Section labels:** incidents in a phase without sections of its own were labelled with the previous phase's last section.
+- **Giant Kefka:** P3's "Giant Kefka" section started at the second hand slam instead of the first.
+
 ## [0.0.2] - 2026-10-06
 
 ### Added
