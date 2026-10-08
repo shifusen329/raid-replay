@@ -23,3 +23,5 @@ stay byte-exact (see `.gitattributes`).
 | `dmu_p1_undersoak.log` | DMU #75, 2:08 wipe | Gravity III puddle soak at 2:01 taken by one player instead of four |
 | `dmu_p1_arrows.log` | DMU #39, 3:15 wipe | Tele-trouncing: an arrow 3.9y inside its spot breaks a Confused chain → ally killed (root cause); three W arrows dropped on top of each other, two of them out of place |
 | `dmu_p1_knockback_arrows.log` | DMU #61, 3:12 wipe | third confetti held 7.2y off its marker corner knocks two players into the arrows; Confused players who never reach an arrow or step in at a corner |
+| `dmu_p1_indulgent_will.log` | DMU #70 (09-22), 3:07 wipe | one arrow left 10.5y off its spot makes Indulgent Will hit harder; it kills two players outright, which goes to the arrow's owner (root cause) |
+| `dmu_p1_confetti_holder.log` | DMU #63 (10-01), 3:06 wipe | third DPS confetti held 10.1y off its marker corner goes to two supports on their own corner (both die) instead of the DPS: the holder is at fault (root cause) |

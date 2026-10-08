@@ -49,6 +49,15 @@ public sealed class PullSummary
     public uint InstanceId { get; set; }
     public bool HasDirector { get; set; }
 
+    /// <summary>When the zone this pull happened in was entered: pulls with the same file and value share one entry.</summary>
+    public long EnteredTicks { get; set; }
+
+    /// <summary>When the duty's timer started (duty commence), 0 if unknown.</summary>
+    public long DutyStartTicks { get; set; }
+
+    /// <summary>The duty's time limit in seconds (7200 for an Ultimate's two hours), 0 if unknown.</summary>
+    public int DutyLimitS { get; set; }
+
     public PullOutcome Outcome { get; set; }
     public bool StartTruncated { get; set; }
     public bool EndTruncated { get; set; }

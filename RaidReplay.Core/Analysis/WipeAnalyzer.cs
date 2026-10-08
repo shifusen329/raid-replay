@@ -764,8 +764,7 @@ public static class WipeAnalyzer
                     detail.Append($"Its soakers were already dead: {string.Join(", ", how)}. ");
 
                     // The tower failed because of those deaths: the root cause is traced through them.
-                    inc.Causes.AddRange(report.Incidents.Where(i => i.Kind is IncidentKind.Death or IncidentKind.FellOff && i.Death != null &&
-                                                                    deadMates.Contains(i.Death.Victim) && i.T <= a.ResolveMs));
+                    inc.Causes.AddRange(DeathsLeavingDead(report, deadMates, a.ResolveMs));
                 }
 
                 if (missing.Count > 0)
@@ -783,10 +782,10 @@ public static class WipeAnalyzer
             }
 
             // Stacks that need a number of soakers (e.g. confetti knockbacks taken by the holder's 3 role-mates): short
-            // stacks kill whoever did take them, so the blame goes to the group members who stayed out. Players inside two
-            // stacks at once take both.
+            // stacks kill whoever did take them, so the blame goes to whoever was out of place: the holder, or the group
+            // members who stayed out. Players inside two stacks at once take both.
             var stacks = g.Aoes.Where(a => a.Category == AoeCategory.Stack && a.Action != null).ToList();
-            var shortBlamed = FindShortStacks(r, report, stacks, alive);
+            var shortBlamed = FindShortStacks(r, report, g, stacks, alive, profile);
 
             // Missed stacks: alive players not hit by any party stack of the moment. Stacks with a soaker count (taken by a
             // few players, e.g. role-group knockbacks or wind duos) are checked by FindShortStacks instead.
@@ -869,7 +868,10 @@ public static class WipeAnalyzer
     {
         var ap = ArrowSquare.Evaluate(r);
         report.Arrows = ap;
-        if (ap == null || ap.Solved)
+        if (ap == null)
+            return;
+        BlameMisplacedPenalty(r, report, ap);
+        if (ap.Solved)
             return;
         var label = ap.Def.Label;
         var lethal = new HashSet<ArrowFinding>();
@@ -977,6 +979,70 @@ public static class WipeAnalyzer
                 Severity = 1,
                 Mechanic = label,
             });
+        }
+    }
+
+    /// <summary>
+    /// Abilities that hit harder for each arrow left on the ground off its spot (pack <c>misplacedPenalty</c>, e.g. Indulgent
+    /// Will): a death they were part of goes to whoever placed the arrows that were off their spots when it hit. The arrows
+    /// get one incident per cast, timed to the first drop, and the deaths trace to it.
+    /// </summary>
+    private static void BlameMisplacedPenalty(PullReplay r, WipeReport report, ArrowSquareResult ap)
+    {
+        if (ap.Def.MisplacedPenalty.Count == 0)
+            return;
+        var ids = ap.Def.MisplacedPenalty.Select(h => h.Value).ToHashSet();
+        var casts = new Dictionary<int, Incident>();
+        foreach (var inc in report.Incidents.Where(i => i.Kind == IncidentKind.Death && i.Death?.KillingBlow != null).ToList())
+        {
+            var d = inc.Death!;
+            var kb = d.KillingBlow!;
+            var penalty = r.Actions.Where(a => ids.Contains(a.ActionId) && a.T >= kb.T - 1000 && a.T <= kb.T + 100).ToList();
+            // Only when it was lethal on its own: a player it didn't kill by itself died to whatever else hit them.
+            var hit = penalty.SelectMany(a => a.Hits).FirstOrDefault(h => h.Target == d.Victim && h.Damage > 0);
+            if (hit == null || hit.Damage < hit.HpBefore)
+                continue;
+            var off = ArrowSquare.OffSpotAt(ap, hit.T).Where(a => a.Owner != null).OrderBy(a => a.T).ToList();
+            if (off.Count == 0)
+                continue;
+            var owners = off.Select(a => a.Owner!).Distinct().ToList();
+            var name = hit.Action.Name;
+
+            var castT = penalty.Min(a => a.T);
+            if (!casts.TryGetValue(castT, out var arrows))
+            {
+                arrows = new Incident
+                {
+                    Kind = IncidentKind.ArrowPuzzle,
+                    T = off[0].T,
+                    Title = $"{ap.Def.Label}: {(off.Count == 1 ? "1 arrow off its spot" : $"{off.Count} arrows off their spots")} made {name} hit harder " +
+                            $"({string.Join(", ", owners.Select(o => o.Name))})",
+                    Detail = $"{name} hits harder for each arrow left on the ground off its spot. When it hit at {FormatMs(castT)}: " +
+                             string.Join("; ", off.Select(a => ArrowSquare.Describe(ap, a))),
+                    Severity = 2,
+                    VerdictHint = "Arrow placement",
+                    Mechanic = ap.Def.Label,
+                };
+                arrows.Players.AddRange(owners);
+                foreach (var a in off.Where(a => a.Meant != null))
+                    arrows.Expected.TryAdd(a.Owner!, (a.Meant!.Pos, ExpectedSource.Assigned, $"{a.Meant.Name} in the arrow layout"));
+                casts[castT] = arrows;
+                report.Incidents.Add(arrows);
+            }
+
+            // Killed together with another player's AoE: whoever was at fault for that stays, and the arrows' owners join.
+            if (inc.Victim == null)
+            {
+                inc.Victim = d.Victim;
+                inc.Players.Clear();
+            }
+
+            inc.Players.AddRange(owners.Where(o => !inc.Players.Contains(o)));
+            inc.Title = $"{d.Victim.Name} died to {name}";
+            inc.Detail += $". {name} hits harder for each arrow left off its spot, and {off.Count} {(off.Count == 1 ? "was" : "were")} when it hit " +
+                          $"({string.Join(", ", off.Select(a => $"{a.Owner!.Name}'s"))})";
+            inc.VerdictHint = "Arrow placement";
+            inc.Causes.Add(arrows);
         }
     }
 
@@ -1158,7 +1224,8 @@ public static class WipeAnalyzer
     }
 
     /// <summary>Stacks with fewer soakers than they need, and players caught in two stacks at once. Returns who was blamed.</summary>
-    private static HashSet<Actor> FindShortStacks(PullReplay r, WipeReport report, List<AoeInstance> stacks, List<Actor> alive)
+    private static HashSet<Actor> FindShortStacks(PullReplay r, WipeReport report, MechanicGroup g, List<AoeInstance> stacks, List<Actor> alive,
+                                                  PositionProfile? profile)
     {
         var blamed = new HashSet<Actor>();
         var deaths = r.Deaths.Where(d => d.Victim.IsPlayer).ToList();
@@ -1172,29 +1239,13 @@ public static class WipeAnalyzer
                 continue;
             var origin = a.Placement(a.ResolveMs).Origin;
             var def = SoakDef(r, a);
+            var roleStack = def?.SoakGroup == "role" && holder != null;
             var others = stacks.Where(x => x != a).SelectMany(x => x.Action!.Hits.Select(h => h.Target)).ToHashSet();
-            var group = def?.SoakGroup == "role" && holder != null
-                            ? alive.Where(p => p != holder && StackPositions.IsSupport(p) == StackPositions.IsSupport(holder)).ToList()
+            var group = roleStack
+                            ? alive.Where(p => p != holder && StackPositions.IsSupport(p) == StackPositions.IsSupport(holder!)).ToList()
                             : alive.Where(p => p != holder && !others.Contains(p) && stacks.All(x => (x.ExcludeActor ?? x.Follow) != p)).ToList();
             var missing = group.Where(p => !soakers.Contains(p)).Select(p => (p, d: Dist(p, a.ResolveMs, origin)))
                                .OrderBy(x => x.d).Take(a.Soakers - soakers.Count).ToList();
-
-            // Nobody took it and the role-mates stood together out of its reach: the holder left the group.
-            Vector2? groupSpot = null;
-            if (holder != null && def?.SoakGroup == "role" && soakers.Count == 0 && group.Count >= 2)
-            {
-                var at = group.Select(p => p.Track.TrySample(a.ResolveMs, out var pos, out _) ? pos : (Vector2?)null)
-                              .Where(p => p != null).Select(p => p!.Value).ToList();
-                if (at.Count >= 2)
-                {
-                    var mid = at.Aggregate(Vector2.Zero, (s, p) => s + p) / at.Count;
-                    if (at.All(p => Vector2.Distance(p, mid) <= 4.5f) && Vector2.Distance(origin, mid) > a.Shape.Radius + 1.5f)
-                    {
-                        groupSpot = mid;
-                        missing = [];
-                    }
-                }
-            }
 
             var dead = soakers.Where(p => DiedTo(p, a)).ToList();
             var spots = StackPositions.For(r, a);
@@ -1211,39 +1262,56 @@ public static class WipeAnalyzer
             var detail = new StringBuilder();
             if (soakers.Count > 0)
                 detail.Append($"Taken by {string.Join(", ", soakers.Select(p => p.Name))} (up to {maxHit:N0} each). ");
-            if (missing.Count > 0)
-            {
-                detail.Append($"Missing from the stack: {string.Join(", ", missing.Select(x => $"{x.p.Name} ({x.d:0.0}y away)"))}" +
-                              (def?.SoakGroup == "role" && holder != null ? $" — {(StackPositions.IsSupport(holder) ? "supports" : "DPS")} take {holder.Name}'s. " : ". "));
-            }
 
-            if (groupSpot is { } gs)
+            List<ShortStackFault> faults;
+            if (roleStack)
             {
+                // Role-mates who were alive and stayed out of it: the stack only went short because the holder took it
+                // away from them or they stood out of its reach. With none, the ones alive all took it and it was short
+                // because the others were already dead.
                 var mates = StackPositions.IsSupport(holder!) ? "supports" : "DPS";
-                detail.Append($"{holder!.Name} took it {Vector2.Distance(origin, gs):0.0}y away from the other {mates}, who stood together at ({gs.X:0.0},{gs.Y:0.0}). ");
-                inc.Players.Add(holder);
-                inc.Expected[holder] = (gs, ExpectedSource.Soak, $"with the other {mates} for {a.Label}");
-                blamed.Add(holder);
+                faults = missing.Count > 0 ? JudgeShortStack(r, a, g, holder!, missing.Select(x => x.p).ToList(), soakers, others, spots, profile, mates) : [];
+                var deadMates = r.Party.Where(p => p != holder && StackPositions.IsSupport(p) == StackPositions.IsSupport(holder!) && !alive.Contains(p)).ToList();
+                if (deadMates.Count > 0)
+                {
+                    var how = deadMates.Select(p => r.Deaths.LastOrDefault(d => d.Victim == p && d.T <= a.ResolveMs) is { } d
+                                                        ? $"{p.Name} ({(d.Cause.StartsWith("Fell", StringComparison.Ordinal) ? "fell off" : "died")} at {FormatMs(d.T)})"
+                                                        : p.Name);
+                    detail.Append(group.Count < a.Soakers
+                                      ? $"Only {group.Count} of the other {mates} were alive to take it: {string.Join(", ", how)} already dead. "
+                                      : $"Already dead: {string.Join(", ", how)}. ");
+
+                    // Too few left to fill it: the stack failed because of those deaths, so the root cause is traced through them.
+                    if (group.Count < a.Soakers)
+                        inc.Causes.AddRange(DeathsLeavingDead(report, deadMates, a.ResolveMs));
+                }
+            }
+            else
+            {
+                faults = missing.Select(x => new ShortStackFault(x.p, x.d, origin, ExpectedSource.Soak, $"needed in {holder?.Name ?? "the"}'s {a.Label}",
+                                                                 $"{x.p.Name} ({x.d:0.0}y away)"))
+                                .ToList();
+                if (faults.Count > 0)
+                    detail.Append($"Missing from the stack: {string.Join(", ", faults.Select(f => f.Why))}. ");
             }
 
-            if (def?.SoakGroup == "role" && holder != null)
-            {
-                var deadMates = r.Party.Where(p => p != holder && StackPositions.IsSupport(p) == StackPositions.IsSupport(holder) && !alive.Contains(p)).ToList();
-                if (deadMates.Count > 0)
-                    detail.Append($"Already dead: {string.Join(", ", deadMates.Select(p => p.Name))}.");
-            }
+            if (roleStack && faults.Count > 0)
+                detail.Append(string.Join(" ", faults.Select(f => f.Why + ".")));
 
             inc.Detail = detail.ToString().TrimEnd();
-            foreach (var (p, _) in missing)
+            foreach (var f in faults)
             {
-                inc.Players.Add(p);
-                inc.Expected[p] = spots != null
-                                      ? (spots.SoakerSpot, ExpectedSource.Assigned, spots.Note ?? $"soaker spot for {a.Label}")
-                                      : (origin, ExpectedSource.Soak, $"needed in {holder?.Name ?? "the"}'s {a.Label}");
-                blamed.Add(p);
+                inc.Players.Add(f.P);
+                if (f.Spot is { } spot)
+                    inc.Expected[f.P] = (spot, f.Source, f.Note);
+                blamed.Add(f.P);
             }
 
-            inc.Players.AddRange(dead);
+            // Those who took it short died for the players who were out of place: their deaths trace back to this.
+            foreach (var death in report.Incidents.Where(i => i.Kind == IncidentKind.Death && i.Death != null && dead.Contains(i.Death.Victim) &&
+                                                              i.Death.T >= a.ResolveMs - 200 && i.Death.T <= a.ResolveMs + 3000))
+                death.Causes.Add(inc);
+
             report.Incidents.Add(inc);
         }
 
@@ -1276,6 +1344,125 @@ public static class WipeAnalyzer
         return blamed;
     }
 
+    /// <summary>
+    /// The deaths that left these players dead at <paramref name="t"/>: each one's last death before it. An earlier death
+    /// they were raised from didn't take them out of the mechanic.
+    /// </summary>
+    private static IEnumerable<Incident> DeathsLeavingDead(WipeReport report, IEnumerable<Actor> players, int t) =>
+        players.Select(p => report.Incidents.Where(i => i.Kind is IncidentKind.Death or IncidentKind.FellOff && i.Death?.Victim == p && i.T <= t)
+                                     .MaxBy(i => i.T))
+               .Where(i => i != null).Select(i => i!);
+
+    /// <summary>A player at fault for a short stack, where they should have been, and why.</summary>
+    private readonly record struct ShortStackFault(Actor P, float Off, Vector2? Spot, ExpectedSource Source, string Note, string Why);
+
+    /// <summary>
+    /// A role stack went short while role-mates who could have taken it stayed out of it (<paramref name="out"/>, nearest
+    /// first): either the holder took it away from them or they stood out of its reach. Whoever was off their spot
+    /// (assigned in the pack, else learned) is at fault. With nobody off, the side judged on its spot was where it
+    /// belonged, so the other side is; with no spots at all, the one standing apart from the group is.
+    /// </summary>
+    private static List<ShortStackFault> JudgeShortStack(PullReplay r, AoeInstance a, MechanicGroup g, Actor holder, List<Actor> @out,
+                                                         List<Actor> soakers, HashSet<Actor> inOther, StackSpots? spots, PositionProfile? profile, string mates)
+    {
+        var t = a.ResolveMs;
+        var hasHolderPos = holder.Track.TrySample(t, out var holderPos, out _);
+        float FromHolder(Actor p) => hasHolderPos && p.Track.TrySample(t, out var pos, out _) ? Vector2.Distance(pos, holderPos) : -1;
+        string Reach(Actor p) => FromHolder(p) is var d and >= 0 ? $"{d:0.0}y from {holder.Name}" : "not hit";
+
+        (bool Known, bool Off, float Dist, Vector2 Spot, ExpectedSource Source, string Note, string Basis) Judge(Actor p)
+        {
+            if (!p.Track.TrySample(t, out var pos, out _))
+                return default;
+            if (spots != null)
+            {
+                var spot = p == holder ? spots.HolderSpot : spots.SoakerSpot;
+                var d = Vector2.Distance(pos, spot);
+                return (true, d > spots.Tolerance, d, spot, ExpectedSource.Assigned, spots.Note ?? $"{(p == holder ? "holder" : "soaker")} spot for {a.Label}",
+                        "their assigned spot");
+            }
+
+            if (profile?.Query(g.Phase, g.PhaseSecond, g.Variant, p.Name, p.Job, r.Summary.Key) is { Count: >= 3 } l)
+            {
+                var d = Vector2.Distance(pos, l.Pos);
+                return (true, d > Math.Max(2.5f, l.Spread * 2.5f), d, l.Pos, ExpectedSource.Learned, $"usual spot, {l.Count} good pulls",
+                        $"their usual spot ({l.Count} good pulls)");
+            }
+
+            return default;
+        }
+
+        var h = Judge(holder);
+        var outs = @out.Select(p => (P: p, J: Judge(p))).ToList();
+        ShortStackFault Holder(string why) => new(holder, h.Dist, h.Known ? h.Spot : null, h.Source, h.Note, $"{holder.Name} (holder) {why}");
+        ShortStackFault Out(Actor p, (bool Known, bool Off, float Dist, Vector2 Spot, ExpectedSource Source, string Note, string Basis) j, string why) =>
+            j.Known
+                ? new(p, j.Dist, j.Spot, j.Source, j.Note, $"{p.Name} {why}")
+                : new(p, 0, a.Placement(t).Origin, ExpectedSource.Soak, $"needed in {holder.Name}'s {a.Label}", $"{p.Name} {why}");
+
+        // Off their spot, or inside the other group's stack instead of this one: at fault, largest miss first. A player on
+        // their spot who was hit by the other group's stack had it brought to them by its holder.
+        var faults = new List<ShortStackFault>();
+        if (h.Off)
+            faults.Add(Holder($"was {h.Dist:0.0}y off {h.Basis}; {string.Join(", ", @out.Select(p => $"{p.Name} ({Reach(p)})"))} {(@out.Count > 1 ? "weren't" : "wasn't")} in it"));
+        foreach (var (p, j) in outs)
+        {
+            if (j.Off)
+                faults.Add(Out(p, j, $"was {j.Dist:0.0}y off {j.Basis} and {(inOther.Contains(p) ? "in the other group's stack" : "out of the stack")} ({Reach(p)})"));
+            else if (!j.Known && inOther.Contains(p))
+                faults.Add(Out(p, j, $"took the other group's {a.Label} instead of {holder.Name}'s ({Reach(p)})") with { Off = FromHolder(p) });
+        }
+
+        if (faults.Count > 0)
+            return faults.OrderByDescending(f => f.Off).ToList();
+
+        // Nobody off. Both sides judged: the one farther off was out of place, unless both were close to their spots.
+        if (h.Known && outs.All(x => x.J.Known))
+        {
+            var far = outs.MaxBy(x => x.J.Dist);
+            if (Math.Max(h.Dist, far.J.Dist) >= 2f)
+            {
+                return h.Dist >= far.J.Dist
+                           ? [Holder($"was {h.Dist:0.0}y off {h.Basis}, farther than {far.P.Name} ({far.J.Dist:0.0}y); {far.P.Name} was {Reach(far.P)} and not in it")]
+                           : [Out(far.P, far.J, $"was {far.J.Dist:0.0}y off {far.J.Basis}, farther than {holder.Name} ({h.Dist:0.0}y), and out of the stack ({Reach(far.P)})")];
+            }
+        }
+        else if (h.Known)
+        {
+            // Only the holder's spot is known, and they were on it: the others stayed out.
+            return outs.Select(x => Out(x.P, x.J, $"stayed out of the stack ({Reach(x.P)}) while {holder.Name} was on {h.Basis}")).ToList();
+        }
+        else if (outs.All(x => x.J.Known))
+        {
+            // Only the others' spots are known, and they were on them: the holder took it away from them.
+            return [Holder($"took it away from the other {mates}: {string.Join(", ", outs.Select(x => $"{x.P.Name} was on {x.J.Basis} ({Reach(x.P)})"))}")];
+        }
+
+        // Spots don't decide: the ones who took it show where the group stood. When everyone who stayed out stood with
+        // them, the holder was too far from the group; otherwise those standing apart stayed out.
+        var at = soakers.Count > 0 ? soakers : @out;
+        var pts = at.Select(p => p.Track.TrySample(t, out var pos, out _) ? pos : (Vector2?)null).Where(p => p != null).Select(p => p!.Value).ToList();
+        if (pts.Count > 0 && (soakers.Count > 0 || pts.Count >= 2))
+        {
+            var mid = pts.Aggregate(Vector2.Zero, (s, p) => s + p) / pts.Count;
+            float Apart(Actor p) => p.Track.TrySample(t, out var pos, out _) ? Vector2.Distance(pos, mid) : float.MaxValue;
+            var apart = outs.Where(x => Apart(x.P) > (soakers.Count > 0 ? 3f : 4.5f)).ToList();
+            if (apart.Count == 0)
+            {
+                var off = hasHolderPos ? Vector2.Distance(holderPos, mid) : 0;
+                return [new ShortStackFault(holder, off, mid, ExpectedSource.Soak, $"with the other {mates} for {a.Label}",
+                                            $"{holder.Name} (holder) took it {off:0.0}y away from the other {mates}, who stood together; " +
+                                            string.Join(", ", @out.Select(p => $"{p.Name} was {Reach(p)}")))];
+            }
+
+            return apart.Select(x => new ShortStackFault(x.P, Apart(x.P), mid, ExpectedSource.Soak, $"with the other {mates} for {a.Label}",
+                                                         $"{x.P.Name} stood {Apart(x.P):0.0}y apart from the {mates} who took it ({Reach(x.P)})"))
+                        .ToList();
+        }
+
+        return outs.Select(x => Out(x.P, x.J, $"stayed out of the stack ({Reach(x.P)})")).ToList();
+    }
+
     /// <summary>Whose spread this is: the player it follows, or the player standing on its centre when it went off.</summary>
     private static Actor? SpreadOwner(PullReplay r, AoeInstance a)
     {
@@ -1305,8 +1492,13 @@ public static class WipeAnalyzer
         if (a.Action.AnimationTarget is { IsPlayer: true } at)
             return at;
 
-        // A line or cone fired from its caster at a player: the player hit nearest its axis is the one it was aimed at.
+        // A cone or line fired at whoever stands nearest its holder (pack aim, e.g. a Spell's Trouble cone) belongs to the
+        // holder: where they stood decided who it went to.
         var hit = a.Action.Hits.Where(h => h.Target.IsPlayer).Select(h => h.Target).Distinct().ToList();
+        if (SoakDef(r, a)?.Aim == "nearestToHolder" && Holder(r, a, hit) is { } holder)
+            return holder;
+
+        // A line or cone fired from its caster at a player: the player hit nearest its axis is the one it was aimed at.
         if (hit.Count <= 1 || a.Shape.Type is not (ShapeType.Rect or ShapeType.Cone))
             return hit.FirstOrDefault() ?? a.Action.PrimaryTarget;
         var (o, heading) = a.Placement(a.ResolveMs);
@@ -1314,6 +1506,25 @@ public static class WipeAnalyzer
         return hit.MinBy(p => p.Track.TrySample(a.ResolveMs, out var pos, out _)
                                   ? MathF.Abs((dir.X * (pos.Y - o.Y)) - (dir.Y * (pos.X - o.X)))
                                   : float.MaxValue);
+    }
+
+    /// <summary>The player an AoE fired at whoever stands nearest its holder went to: its logged target, else the hit nearest the holder.</summary>
+    private static Actor? AimedAt(PullReplay r, AoeInstance a, Actor holder)
+    {
+        var hit = a.Action?.Hits.Where(h => h.Target.IsPlayer && h.Target != holder).Select(h => h.Target).Distinct().ToList() ?? [];
+        if (a.Action?.PrimaryTarget is { } primary && hit.Contains(primary))
+            return primary;
+        if (!holder.Track.TrySample(a.ResolveMs, out var at, out _))
+            return null;
+        return hit.MinBy(p => p.Track.TrySample(a.ResolveMs, out var pos, out _) ? Vector2.Distance(pos, at) : float.MaxValue);
+    }
+
+    /// <summary>The party member standing at an AoE's origin when it resolved (not one it hit), if any.</summary>
+    private static Actor? Holder(PullReplay r, AoeInstance a, List<Actor> hit)
+    {
+        var (origin, _) = a.Placement(a.ResolveMs);
+        return r.Party.Where(p => !hit.Contains(p) && p.Track.TrySample(a.ResolveMs, out var pos, out _) && Vector2.Distance(pos, origin) <= 1.5f)
+                .MinBy(p => p.Track.TrySample(a.ResolveMs, out var pos, out _) ? Vector2.Distance(pos, origin) : float.MaxValue);
     }
 
     /// <summary>
@@ -1391,8 +1602,15 @@ public static class WipeAnalyzer
     /// are only hit together by design (stacks and absorbs, judged elsewhere), so that gives no verdict.
     /// </summary>
     private static OwnedFault? JudgeOwned(PullReplay r, AoeInstance a, Actor owner, Actor victim, List<MechanicGroup> groups,
-                                          PositionProfile? profile)
+                                          PositionProfile? profile, bool viaHolder = true)
     {
+        // Fired at whoever stands nearest its holder (pack aim): a player it passed through on its way is judged against
+        // the player it went to, like any aimed AoE; the player it went to, when they were the wrong one, against the
+        // holder (below).
+        var aimed = viaHolder && SoakDef(r, a)?.Aim == "nearestToHolder";
+        if (aimed && AimedAt(r, a, owner) is { } target && target != victim && target != owner)
+            return JudgeOwned(r, a, target, victim, groups, profile, viaHolder: false);
+
         var g = groups.FirstOrDefault(x => x.Aoes.Contains(a)) ?? groups.Where(x => Math.Abs(x.T - a.ResolveMs) <= 1500)
                                                                          .MinBy(x => Math.Abs(x.T - a.ResolveMs));
 
@@ -1419,6 +1637,10 @@ public static class WipeAnalyzer
             return Owner();
         if (v.Known && v.Off)
             return Victim();
+
+        // It went to the wrong player: the holder aimed it by where they stood.
+        if (aimed && Misaimed(r, a, owner, victim) is { } misaimed)
+            return misaimed;
 
         // Both near their spots: it still only hits someone else when somebody was out of place, so the one farther off is.
         if (o.Known && v.Known)
@@ -1459,6 +1681,28 @@ public static class WipeAnalyzer
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// A cone or line fired at the player nearest its holder went to someone who was taking another player-targeted AoE
+    /// (their own spread, a stack, another bait) at the same moment, so it went to the wrong player: the holder aimed it.
+    /// Names who was nearest and who came next. Null when the player hit had nothing else to take.
+    /// </summary>
+    private static OwnedFault? Misaimed(PullReplay r, AoeInstance a, Actor holder, Actor victim)
+    {
+        var others = r.Aoes.Where(x => x != a && x.Action != null && x.Action != a.Action && Math.Abs(x.ResolveMs - a.ResolveMs) <= 500 &&
+                                       x.Category is AoeCategory.Spread or AoeCategory.Stack or AoeCategory.Bait &&
+                                       x.Action.Hits.Any(h => h.Target == victim)).ToList();
+        var also = others.FirstOrDefault(x => OwnedBy(r, x) == victim) ?? others.FirstOrDefault();
+        if (also == null || !holder.Track.TrySample(a.ResolveMs, out var at, out _) || !victim.Track.TrySample(a.ResolveMs, out var vp, out _))
+            return null;
+        var next = r.Party.Where(p => p != holder && p != victim && ShapeValidator.IsAlive(r, p, a.ResolveMs))
+                    .Select(p => (Player: p, Dist: p.Track.TrySample(a.ResolveMs, out var pp, out _) ? Vector2.Distance(pp, at) : float.MaxValue))
+                    .Where(x => x.Dist < float.MaxValue).OrderBy(x => x.Dist).FirstOrDefault();
+        var taking = OwnedBy(r, also) == victim ? $"their own {also.Label}" : also.Label;
+        var why = $"it goes to whoever stands nearest its holder, and {victim.Name} was nearest ({Vector2.Distance(vp, at):0.0}y) " +
+                  $"while taking {taking}" + (next.Player != null ? $"; {next.Player.Name} was next ({next.Dist:0.0}y)" : "");
+        return new OwnedFault(holder, null, 0, 0, why);
     }
 
     /// <summary>The boss an AoE was baited from, and its max-melee ring (hitbox + 3y).</summary>

@@ -331,6 +331,9 @@ public sealed class LogIndexer : ILineConsumer
             ZoneId = World.ZoneId,
             ZoneName = World.ZoneName,
             MapId = World.MapId,
+            EnteredTicks = World.EnteredTicks,
+            DutyStartTicks = World.DutyStartTicks,
+            DutyLimitS = World.DutyLimitS,
             StartTruncated = truncated,
         };
 

@@ -59,6 +59,9 @@ public sealed class WorldSnapshot
     public uint InstanceId { get; set; }
     public uint PrimaryPlayerId { get; set; }
     public List<uint> Party { get; set; } = [];
+    public long EnteredTicks { get; set; }
+    public long DutyStartTicks { get; set; }
+    public int DutyLimitS { get; set; }
     public List<WaymarkState> Waymarks { get; set; } = [];
     public List<SignState> Signs { get; set; } = [];
     public List<CombatantState> Combatants { get; set; } = [];

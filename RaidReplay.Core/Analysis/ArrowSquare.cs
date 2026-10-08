@@ -933,6 +933,14 @@ public static class ArrowSquare
 
     private static string DirName(float? heading) => heading is { } h ? $"{Compass(h)} " : string.Empty;
 
+    /// <summary>Arrows on the ground at <paramref name="t"/> that were off their layout spot.</summary>
+    public static List<PlacedArrow> OffSpotAt(ArrowSquareResult result, int t) =>
+        result.Arrows.Where(a => a.Teleporter is { } tp && tp.SpawnMs <= t && tp.DespawnMs > t && !result.OnSpot(a)).ToList();
+
+    /// <summary>E.g. "Player4's E arrow at (99.3, 99.4) (11.4y from N, 11.3y inside the square)".</summary>
+    public static string Describe(ArrowSquareResult result, PlacedArrow a) =>
+        $"{Possessive(a.Owner)} {DirName(a.Heading)}arrow at {P(a.Pos)} ({OffText(result, a)})";
+
     private static string Possessive(Actor? a) => a != null ? $"{a.Name}'s" : "an unknown player's";
 
     private static string P(Vector2 v) => $"({v.X:0.0}, {v.Y:0.0})";

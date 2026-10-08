@@ -63,6 +63,10 @@ public class Configuration : IPluginConfiguration
     public float PullListWidth { get; set; } = 380;
     public float SidePanelWidth { get; set; } = 440;
     public bool PullListCollapsed { get; set; }
+
+    /// <summary>Pull list grouped by entry into a duty (expand an entry to see its pulls); off = one flat list.</summary>
+    public bool GroupPullsByEntry { get; set; } = true;
+
     public bool SidePanelCollapsed { get; set; }
     public bool SidePanelPoppedOut { get; set; }
 

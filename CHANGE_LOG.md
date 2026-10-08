@@ -2,6 +2,43 @@
 
 Notable changes to Raid Replay. Versions match the plugin version shown in `/xlplugins`.
 
+## [0.0.8] - 2026-10-08
+
+### Added
+
+- **The pull list is grouped by entry:** each time you entered a duty, with its time limit (an Ultimate's two hours).
+  - An entry's row shows when you entered, how much of the time limit was used, its pulls (or "Clear"), the zone and the best boss HP reached. Hover for the details.
+  - Click an entry to show or hide its pulls. The newest entry, and the one holding the pull you're viewing, are open.
+  - A roulette dungeon is now one row instead of a row per trash pack.
+  - The button next to Zone switches back to one flat list.
+
+- **Encounter packs** have new fields:
+  - `shownAs` on an ability: the name players know an attack by, replacing the log's name everywhere;
+  - `aim: "nearestToHolder"` on an ability: a cone or line fired at the player standing nearest its holder;
+  - `misplacedPenalty` on an arrow puzzle: abilities that hit harder for each arrow left off its spot.
+
+### Changed
+
+- **Spell's Trouble attacks are called what players see:** "cone (Spell's Trouble)", "spread (Spell's Trouble)" and "stack (Spell's Trouble)". Their log names (Spellwave, Spellscatter, Spelldriver) have no cast bar and only appear in the battle log.
+- **`ATTRIBUTION.md`** has the rules for cones fired at the player nearest their holder, short role stacks (the confetti) and Indulgent Will, with worked examples.
+- **Log index:** the index format changed (it now records when you entered each duty), so the first launch re-indexes your log folder once.
+
+### Fixed
+
+- **The pull list only scrolled through the newest few dozen pulls,** e.g. pulls 49–90 of today's log, though its count said thousands. All pulls are listed again.
+- **A Spell's Trouble cone that went to the wrong player blamed the player it killed.** The cone goes to whoever stands nearest its holder, so the holder aims it by where they stand.
+  - When it goes to a player who was taking their own spread, stack or bait at that moment, the holder is at fault ("Out of position"). The report says who was nearest and who was next, e.g. 6.0 y against 6.3 y.
+  - A player caught on the cone's way to its target is still judged against that target. Their death now names the cone's holder, e.g. "died to the off-tank's cone (Spell's Trouble)".
+  - This changed the root cause of 7 of 185 Dancing Mad pulls in the test logs.
+- **When two players died to a short confetti (Double-trouble Trap), the report blamed them.** It listed the players who took it as culprits, and only blamed the holder when nobody took it.
+  - Now the holder or the role-mate who stayed out is at fault, whichever was off their spot: the marker corners for the third confetti, otherwise their usual spot. If both were, both are named. The players who took it are victims.
+  - When a role-mate was already dead, too few were left to fill it, so the confetti traces back to that death and nobody is blamed for the confetti itself.
+  - A support on their own corner, whom the DPS confetti was brought to, isn't blamed for missing their own.
+  - This changed who is blamed in 69 of 1,258 Dancing Mad pulls in the test logs, and the root cause in 3.
+- **Deaths to Indulgent Will blamed the players who died.** Indulgent Will hits harder for each arrow left on the ground off its spot (in 312 pulls, a median of 92k with none and 151k with four or more). A death it causes by itself now goes to whoever placed those arrows, as "Arrow placement failure", and the arrows get their own incident, timed to when they were dropped.
+  - A player it didn't kill by itself, e.g. one at full HP who also stood in an Idyllic Will sleep circle, still died to whatever else hit them. So does anyone it killed with every arrow on its spot.
+- **A mechanic left short because a player was dead traced back to their first death of the pull,** even when they had been raised since. It now traces to the death they were still dead from.
+
 ## [0.0.7] - 2026-10-07
 
 ### Added

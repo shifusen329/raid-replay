@@ -34,6 +34,15 @@ public sealed class WorldStateTracker
     public List<uint> Party { get; private set; } = [];
     public long LastTicks { get; private set; }
 
+    /// <summary>When the current zone was entered (its ChangeZone line).</summary>
+    public long EnteredTicks { get; private set; }
+
+    /// <summary>When the duty commenced (director 40000001), 0 if it hasn't in this zone.</summary>
+    public long DutyStartTicks { get; private set; }
+
+    /// <summary>The duty's time limit in seconds (e.g. 7200 for an Ultimate), 0 if unknown.</summary>
+    public int DutyLimitS { get; private set; }
+
     public ReadOnlySpan<WaymarkState?> Waymarks => waymarks;
 
     public StringPool Strings { get; } = new();
@@ -54,6 +63,9 @@ public sealed class WorldStateTracker
                 Signs.Clear();
                 Array.Clear(waymarks);
                 InstanceId = 0;
+                EnteredTicks = ticks;
+                DutyStartTicks = 0;
+                DutyLimitS = 0;
                 break;
             case LineType.ChangePrimaryPlayer:
                 PrimaryPlayerId = f.Hex(F02.Id);
@@ -108,6 +120,13 @@ public sealed class WorldStateTracker
             }
             case LineType.Director:
                 InstanceId = f.Hex(F33.Instance);
+                // Duty commence: its first parameter is the time limit in seconds.
+                if (f.Hex(F33.Command) == 0x40000001)
+                {
+                    DutyStartTicks = ticks;
+                    DutyLimitS = (int)f.Hex(F33.P1);
+                }
+
                 break;
             case LineType.Map:
                 MapId = f.Int(F40.MapId);
@@ -239,6 +258,9 @@ public sealed class WorldStateTracker
             InstanceId = InstanceId,
             PrimaryPlayerId = PrimaryPlayerId,
             Party = [..Party],
+            EnteredTicks = EnteredTicks,
+            DutyStartTicks = DutyStartTicks,
+            DutyLimitS = DutyLimitS,
         };
         foreach (var w in waymarks)
         {
@@ -263,6 +285,9 @@ public sealed class WorldStateTracker
         InstanceId = s.InstanceId;
         PrimaryPlayerId = s.PrimaryPlayerId;
         Party = [..s.Party];
+        EnteredTicks = s.EnteredTicks;
+        DutyStartTicks = s.DutyStartTicks;
+        DutyLimitS = s.DutyLimitS;
         Array.Clear(waymarks);
         foreach (var w in s.Waymarks)
         {

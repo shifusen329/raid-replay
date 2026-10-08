@@ -11,7 +11,7 @@ namespace RaidReplay.Core.Indexing;
 /// <summary>Cached index of one log file.</summary>
 public sealed class FileIndex
 {
-    public const int CurrentFormat = 4; // 4: pulls detected in logs without 260 combat flags
+    public const int CurrentFormat = 5; // 4: pulls detected in logs without 260 combat flags; 5: zone entry and duty timer per pull
 
     public int Format { get; set; } = CurrentFormat;
     public string Path { get; set; } = string.Empty;

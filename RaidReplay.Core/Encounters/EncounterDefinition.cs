@@ -109,6 +109,12 @@ public sealed class ArrowSquareDef
     /// <summary>Most teleports one Confused player takes (0 = no limit).</summary>
     public int MaxChain { get; set; } = 4;
 
+    /// <summary>
+    /// Abilities that hit harder for each arrow left on the ground off its spot (e.g. Indulgent Will): a death to one is
+    /// the fault of whoever placed those arrows.
+    /// </summary>
+    public List<HexId> MisplacedPenalty { get; set; } = [];
+
     public string? Conf { get; set; }
 }
 
@@ -254,7 +260,15 @@ public sealed class TelegraphDef
 
 public sealed class AbilityDef
 {
+    /// <summary>Name for an ability the log leaves unnamed ("unknown_xxxx").</summary>
     public string? Name { get; set; }
+
+    /// <summary>
+    /// The name players know it by, replacing the log's name everywhere (recaps, titles, timeline). For attacks with no
+    /// cast bar that players only know by their marker, e.g. "cone (Spell's Trouble)" for Spellwave.
+    /// </summary>
+    public string? ShownAs { get; set; }
+
     public string? Label { get; set; }
     public string? Mech { get; set; }
     public ShapeDef? Shape { get; set; }
@@ -301,6 +315,13 @@ public sealed class AbilityDef
     /// it incorrectly.
     /// </summary>
     public string? BaitAt { get; set; }
+
+    /// <summary>
+    /// Who a cone or line coming out of a player is fired at: "nearestToHolder" = the player standing nearest its holder
+    /// (e.g. Spell's Trouble cones). The holder aims it by where they stand, so when it hits the wrong player, the holder
+    /// is at fault unless the player hit was off their usual spot.
+    /// </summary>
+    public string? Aim { get; set; }
 
     public List<HexId>? ResolvesWith { get; set; }
     public bool ExcludesHolder { get; set; }

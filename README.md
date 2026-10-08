@@ -56,10 +56,12 @@ The engine works on any fight. It reads AoE shapes from the game's Action sheet 
 - actor roles (boss, helper, clone, and so on, keyed by BNpcBase);
 - event objects such as puddles and teleporters;
 - per-ability AoE shape, origin, heading and category (danger, fake, tower, stack, spread, tankbuster, bait, …), including telegraphs drawn before the hit;
+- the name players know an attack by, when it differs from the log's name (e.g. "cone (Spell's Trouble)" for Spellwave);
+- who a cone or line coming out of a player is fired at (the player nearest its holder);
 - towers spawned by map effects;
 - head-marker and tether labels, and head-marker icons (stack, spread, cone, …);
 - soak counts and who soaks (e.g. the holder's role group), and fixed holder/soaker spots relative to waymarks;
-- arrow-teleporter puzzles: the intended layout and how far a teleport carries and chains;
+- arrow-teleporter puzzles: the intended layout, how far a teleport carries and chains, and attacks that hit harder for each arrow left off its spot;
 - failure abilities.
 
 Who the report blames, and which incident it picks as the root cause, follow the rules in [`ATTRIBUTION.md`](ATTRIBUTION.md).
@@ -71,7 +73,9 @@ Who the report blames, and which incident it picks as the root cause, follow the
   - every arrow is matched to the spot it belonged on (the plain clockwise square, or the corner variant some groups use);
   - arrows dropped on top of each other, or used up before the confusion (including by an out-of-place confetti knockback), are blamed on whoever was out of place;
   - each Confused player is followed through the arrows actually on the ground. This agrees with the game's own puzzle verdict on every logged pull;
-  - a Confused player's kill goes to whatever broke their chain.
+  - a Confused player's kill goes to whatever broke their chain;
+  - a death to Indulgent Will, which hits harder for each arrow left on the ground off its spot, goes to whoever placed those arrows.
+- Double-trouble Trap (confetti) taken by too few players blames the holder or the role-mate who stayed out, whichever was off their spot, never the players who took it.
 
 **Your own packs:** put them in the plugin's `encounters` folder (Settings → Encounters → Open folder). A pack whose `key` matches a built-in pack replaces it. "Export built-in packs" writes copies you can start from.
 

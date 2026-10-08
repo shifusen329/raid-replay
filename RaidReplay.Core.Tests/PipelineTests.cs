@@ -26,6 +26,8 @@ public class IndexerTests
         Assert.Equal("dmu", p.EncounterKey);
         Assert.Equal("P1 Kefka", p.FurthestPhase);
         Assert.InRange(p.BossHpPct, 82, 84.5f);
+        // The zone was entered at the excerpt's first line (its synthesized ChangeZone); pulls of one entry share it.
+        Assert.Equal(new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc).Ticks, p.EnteredTicks);
     }
 
     [Fact]
@@ -50,6 +52,7 @@ public class IndexerTests
             Assert.Equal(a.Outcome, b.Outcome);
             Assert.Equal(a.Deaths, b.Deaths);
             Assert.Equal(a.Phases.Select(x => x.Id), b.Phases.Select(x => x.Id));
+            Assert.Equal(a.EnteredTicks, b.EnteredTicks);
         }
     }
 
@@ -531,19 +534,58 @@ public class ArrowPuzzleTests
     }
 
     [Fact]
+    public void DeathsToIndulgentWillGoToWhoeverMisplacedArrows()
+    {
+        // Pull #70 (09-22): Player8's E arrow was 10.5y from its spot, outside the square, and still on the ground when
+        // Indulgent Will hit; it hits harder for each misplaced arrow, and killed two players outright.
+        var (r, report) = Analyze("dmu_p1_indulgent_will.log");
+        var owner = Player(r, "Player8");
+        var deaths = report.Incidents.Where(i => i.Kind == IncidentKind.Death && i.Title.EndsWith("died to Indulgent Will")).ToList();
+        Assert.Equal(["Player1", "Player5"], deaths.Select(d => d.Victim!.Name).Order());
+        Assert.All(deaths, d => Assert.Equal([owner], d.Players));
+
+        var arrows = Assert.Single(report.Incidents, i => i.Kind == IncidentKind.ArrowPuzzle && i.Title.Contains("made Indulgent Will hit harder"));
+        Assert.Equal([owner], arrows.Players);
+        Assert.All(deaths, d => Assert.Contains(arrows, d.Causes));
+        Assert.Equal(arrows, report.RootCause);
+        Assert.Equal("Arrow placement failure", report.Verdict);
+    }
+
+    [Fact]
     public void ShortConfettiStackBlamesTheRoleMatesWhoStayedOut()
     {
         // Pull #75: the second confetti knockback on a support was taken by one player (1.5M damage, dead); the last
-        // living support stayed out (the third was already dead).
+        // living support stood apart from them (the third was already dead). The one who took it is a victim, not a culprit.
         var (r, report) = Analyze("dmu_p1_undersoak.log");
         var inc = Assert.Single(report.Incidents, i => i.Kind == IncidentKind.MissedStack && i.Title.Contains("1/3 soakers"));
         Assert.Equal(3, inc.Severity);
-        var missing = inc.Players.Where(p => !inc.Title.Contains($"{p.Name} died")).ToList();
-        Assert.Single(missing);
+        var culprit = Assert.Single(inc.Players);
+        Assert.DoesNotContain($"{culprit.Name} died", inc.Title);
         var holder = inc.Aoes[0].ExcludeActor!;
-        Assert.All(missing, p => Assert.Equal(StackPositions.IsSupport(holder), StackPositions.IsSupport(p)));
-        Assert.Contains("Already dead", inc.Detail);
-        Assert.Equal(ExpectedSource.Soak, inc.Snapshot.Single(s => s.Player == missing[0]).ExpectedSource);
+        Assert.Equal(StackPositions.IsSupport(holder), StackPositions.IsSupport(culprit));
+        Assert.Contains("already dead", inc.Detail);
+        Assert.Equal(ExpectedSource.Soak, inc.Snapshot.Single(s => s.Player == culprit).ExpectedSource);
+
+        // Too few supports were left to fill it, so it traces back to the earlier death; the death of the one who took
+        // it traces to the stack.
+        Assert.Contains(inc.Causes, c => c.Kind == IncidentKind.Death && c.T < inc.T);
+        Assert.Contains(inc, report.Incidents.Single(i => i.Kind == IncidentKind.Death && i.Death!.Victim.Name == "Player7").Causes);
+    }
+
+    [Fact]
+    public void ShortConfettiStackBlamesAHolderOffTheirCorner()
+    {
+        // Pull #63: the third DPS confetti holder (Player4) stood 10.1y off the bottom-right corner of marker 3, so it went
+        // to two supports on their own corner (both died) and missed a DPS on theirs. Neither the supports who died nor
+        // the DPS who wasn't in it are at fault.
+        var (r, report) = Analyze("dmu_p1_confetti_holder.log");
+        var holder = Player(r, "Player4");
+        var inc = Assert.Single(report.Incidents, i => i.Kind == IncidentKind.MissedStack && i.Aoes[0].ExcludeActor == holder);
+        Assert.Contains("2/3 soakers", inc.Title);
+        Assert.Equal([holder], inc.Players);
+        Assert.Contains("Player4 (holder) was 10.1y off their assigned spot", inc.Detail);
+        Assert.Equal(ExpectedSource.Assigned, inc.Snapshot.Single(s => s.Player == holder).ExpectedSource);
+        Assert.Equal(inc, report.RootCause);
     }
 }
 
@@ -637,6 +679,20 @@ public class PackSchemaTests
             """, "t");
         Assert.Equal("stackGround", ok.HeadMarkers[1].Icon);
         Assert.Equal("stack", TestEnv.Registry.ForTerritory(0x553)!.HeadMarkers[0x02CB].Icon);
+    }
+
+    [Fact]
+    public void AimAndShownAsAreValidatedAndApplied()
+    {
+        Assert.ThrowsAny<Exception>(() => EncounterRegistry.Compile("""
+            { "key": "x", "match": { "territoryIds": ["0x1"] }, "abilities": { "0x1": { "category": "bait", "aim": "farthest", "shape": { "type": "cone" } } } }
+            """, "t"));
+        Assert.ThrowsAny<Exception>(() => EncounterRegistry.Compile("""
+            { "key": "x", "match": { "territoryIds": ["0x1"] }, "abilities": { "0x1": { "category": "bait", "aim": "nearestToHolder", "shape": { "type": "circle" } } } }
+            """, "t"));
+        var dmu = TestEnv.Registry.ForTerritory(0x553)!;
+        Assert.Equal("nearestToHolder", dmu.Abilities[0xBAC2].Aim);
+        Assert.Equal("cone (Spell's Trouble)", dmu.Abilities[0xBAC2].ShownAs);
     }
 }
 

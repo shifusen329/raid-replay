@@ -258,6 +258,10 @@ public static class EncounterValidator
                 problems.Add($"abilities[{id}]: onlyTarget is for category \"bait\"");
             if (a.BaitAt is not (null or "maxMelee"))
                 problems.Add($"abilities[{id}]: baitAt must be \"maxMelee\"");
+            if (a.Aim is not (null or "nearestToHolder"))
+                problems.Add($"abilities[{id}]: aim must be \"nearestToHolder\"");
+            if (a.Aim != null && a.Shape?.Type is not ("cone" or "rect"))
+                problems.Add($"abilities[{id}]: aim needs a cone or rect shape");
             if (a.SoakOrder is { } so)
             {
                 if (so.Order.Length == 0 || so.Order.Any(ch => ch is not ('A' or 'B')))

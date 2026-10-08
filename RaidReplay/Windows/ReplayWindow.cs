@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Numerics;
 using System.Runtime.CompilerServices;
@@ -88,6 +89,14 @@ public sealed class ReplayWindow : Window, IDisposable
     /// <summary>Boss tab: each boss's statuses over the pull, built once per replay.</summary>
     private (PullReplay? Replay, Dictionary<Actor, List<StatusInterval>> ByBoss) bossStatuses;
     private List<PullSummary> filtered = [];
+
+    /// <summary>What the pull list shows, in order: entry headers and the pulls of open entries (or every pull, ungrouped).</summary>
+    private List<(PullEntry? Entry, PullSummary? Pull)> listRows = [];
+    private int entryCount;
+    private bool rowsDirty = true;
+    private PullSummary? rowsCurrent;
+    private readonly HashSet<(string, long, uint)> openedEntries = [];
+    private readonly HashSet<(string, long, uint)> closedEntries = [];
     private List<string> zones = ["All"];
     private (int, bool, int, string) filterState;
     private string pullCountText = string.Empty;
@@ -480,14 +489,14 @@ public sealed class ReplayWindow : Window, IDisposable
             var visible = lib.AllPulls.Where(Visible).ToList();
             zones = ["All", .. visible.Select(p => p.ZoneName).Distinct().OrderBy(z => z)];
             filtered = visible.Where(p => zoneFilter == "All" || p.ZoneName == zoneFilter).ToList();
-            pullCountText = $"{filtered.Count} pull{(filtered.Count == 1 ? "" : "s")}";
             sortDirty = true;
+            rowsDirty = true;
         }
 
         ImGui.AlignTextToFramePadding();
         ImGui.TextUnformatted("Zone");
         ImGui.SameLine();
-        ImGui.SetNextItemWidth(-1);
+        ImGui.SetNextItemWidth(-(ImGui.GetFrameHeight() * 1.15f) - ImGui.GetStyle().ItemSpacing.X);
         using (var combo = ImRaii.Combo("##zone", zoneFilter == "All" ? "All zones" : zoneFilter))
         {
             if (combo.Success)
@@ -506,6 +515,27 @@ public sealed class ReplayWindow : Window, IDisposable
                              (config.InstancedOnly ? " and outside instanced content" : "") + " are hidden (Settings › Logs).");
         }
 
+        ImGui.SameLine();
+        if (Theme.IconButton("##groupentries", FontAwesomeIcon.LayerGroup,
+                             config.GroupPullsByEntry
+                                 ? "Grouped by entry: each time you entered a duty, with its time limit. Click for one flat list."
+                                 : "One flat list. Click to group pulls by entry into a duty.",
+                             config.GroupPullsByEntry))
+        {
+            config.GroupPullsByEntry = !config.GroupPullsByEntry;
+            config.Save();
+            rowsDirty = true;
+        }
+
+        var cur = service.Current?.Summary;
+        if (!ReferenceEquals(cur, rowsCurrent))
+        {
+            rowsCurrent = cur;
+            rowsDirty = true;
+        }
+
+        if (rowsDirty)
+            BuildListRows(cur);
         Theme.Dim(pullCountText);
         Theme.Help("Click a pull to load it. Hover a row for its summary.\n" +
                    "Click a column header to sort, drag a header edge to resize, drag a header to reorder, " +
@@ -541,54 +571,202 @@ public sealed class ReplayWindow : Window, IDisposable
             SortPulls();
             specs.SpecsDirty = false;
             sortDirty = false;
+            BuildListRows(cur);
         }
 
-        // Manual clipping: rows above/below the viewport are replaced by one tall row.
+        // Only the rows in view are drawn. ImGui's clipper measures the real row height and keeps the scroll range covering
+        // every row (a trailing spacer row doesn't count toward a table's scroll height).
         var rowH = ImGui.GetTextLineHeightWithSpacing();
-        var first = Math.Max(0, (int)(ImGui.GetScrollY() / rowH) - 1);
-        var count = (int)(ImGui.GetContentRegionAvail().Y / rowH) + 3;
-        var last = Math.Min(filtered.Count, first + count);
-        if (first > 0)
-            ImGui.TableNextRow(ImGuiTableRowFlags.None, first * rowH);
-        var cur = service.Current?.Summary;
-        for (var i = first; i < last; i++)
+        var clipper = new ImGuiListClipper();
+        clipper.Begin(listRows.Count);
+        while (clipper.Step())
         {
-            var p = filtered[i];
-            var txt = RowText(p);
-            ImGui.TableNextRow(ImGuiTableRowFlags.None, rowH);
-            using var id = ImRaii.PushId(i);
-            if (ImGui.TableSetColumnIndex(0))
-                Theme.Dim(txt.Ordinal);
-
-            ImGui.TableSetColumnIndex(1);
-            var x = ImGui.GetCursorPosX();
-            var selected = cur != null && cur.StartOffset == p.StartOffset && cur.FilePath == p.FilePath;
-            if (ImGui.Selectable("##row", selected, ImGuiSelectableFlags.SpanAllColumns | ImGuiSelectableFlags.AllowItemOverlap))
-                service.Load(p);
-            if (ImGui.IsItemHovered())
-                ImGui.SetTooltip(txt.Tooltip);
-            ImGui.SameLine();
-            ImGui.SetCursorPosX(x);
-            ImGui.TextColored(Theme.TextFaint, txt.Date);
-            ImGui.SameLine(0, 4 * Scale);
-            ImGui.TextUnformatted(txt.Time);
-
-            if (ImGui.TableSetColumnIndex(2))
-                ImGui.TextUnformatted(txt.Duration);
-            if (ImGui.TableSetColumnIndex(3))
-                ImGui.TextColored(txt.ResultColor, txt.Result);
-            if (ImGui.TableSetColumnIndex(4))
-                ImGui.TextUnformatted(txt.Phase);
-            if (ImGui.TableSetColumnIndex(5))
-                ImGui.TextColored(p.BossHpPct >= 0 ? Theme.Text : Theme.TextFaint, txt.Boss);
-            if (ImGui.TableSetColumnIndex(6))
-                ImGui.TextColored(p.Deaths > 0 ? Theme.Text : Theme.TextFaint, txt.Deaths);
-            if (ImGui.TableSetColumnIndex(7))
-                Theme.Dim(p.ZoneName);
+            for (var i = clipper.DisplayStart; i < clipper.DisplayEnd; i++)
+            {
+                var (entry, pull) = listRows[i];
+                if (pull != null)
+                    DrawPullRow(pull, i, rowH, cur, nested: entry != null);
+                else if (entry != null)
+                    DrawEntryRow(entry, i, rowH);
+            }
         }
 
-        if (last < filtered.Count)
-            ImGui.TableNextRow(ImGuiTableRowFlags.None, (filtered.Count - last) * rowH);
+        clipper.End();
+    }
+
+    /// <summary>
+    /// The pull list's rows: every pull, or, grouped, one header per entry into a duty followed by its pulls when open.
+    /// Pulls keep the list's sort order inside their entry; entries go newest first (oldest first when sorted by When,
+    /// ascending). The newest entry and the one holding the loaded pull are open unless closed by hand.
+    /// </summary>
+    private void BuildListRows(PullSummary? cur)
+    {
+        rowsDirty = false;
+        listRows = [];
+        if (!config.GroupPullsByEntry)
+        {
+            entryCount = 0;
+            listRows.AddRange(filtered.Select(p => ((PullEntry?)null, (PullSummary?)p)));
+            pullCountText = $"{filtered.Count} pull{(filtered.Count == 1 ? "" : "s")}";
+            return;
+        }
+
+        var entries = filtered.GroupBy(PullEntry.KeyOf).Select(g => new PullEntry(g.Key, g.ToList())).ToList();
+        entries = sortColumn == 1 && sortAscending ? entries.OrderBy(e => e.EnteredTicks).ToList() : entries.OrderByDescending(e => e.EnteredTicks).ToList();
+        var newest = entries.MaxBy(e => e.EnteredTicks);
+        var curKey = cur != null ? PullEntry.KeyOf(cur) : default;
+        foreach (var e in entries)
+        {
+            e.Open = !closedEntries.Contains(e.Key) && (openedEntries.Contains(e.Key) || e == newest || (cur != null && e.Key == curKey));
+            listRows.Add((e, null));
+            if (e.Open)
+                listRows.AddRange(e.Pulls.Select(p => ((PullEntry?)e, (PullSummary?)p)));
+        }
+
+        entryCount = entries.Count;
+        pullCountText = $"{filtered.Count} pull{(filtered.Count == 1 ? "" : "s")} in {entryCount} entr{(entryCount == 1 ? "y" : "ies")}";
+    }
+
+    private void DrawEntryRow(PullEntry e, int i, float rowH)
+    {
+        ImGui.TableNextRow(ImGuiTableRowFlags.None, rowH);
+        ImGui.TableSetBgColor(ImGuiTableBgTarget.RowBg0, Theme.U32(Theme.With(Theme.Accent, 0.10f)));
+        using var id = ImRaii.PushId(i);
+        ImGui.TableSetColumnIndex(1);
+        var x = ImGui.GetCursorPosX();
+        if (ImGui.Selectable("##entry", false, ImGuiSelectableFlags.SpanAllColumns | ImGuiSelectableFlags.AllowItemOverlap))
+        {
+            if (e.Open)
+            {
+                closedEntries.Add(e.Key);
+                openedEntries.Remove(e.Key);
+            }
+            else
+            {
+                openedEntries.Add(e.Key);
+                closedEntries.Remove(e.Key);
+            }
+
+            rowsDirty = true;
+        }
+
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip(e.Tooltip);
+        ImGui.SameLine();
+        ImGui.SetCursorPosX(x);
+        Theme.Icon(e.Open ? FontAwesomeIcon.CaretDown : FontAwesomeIcon.CaretRight, Theme.TextDim);
+        ImGui.SameLine(0, 4 * Scale);
+        ImGui.TextColored(Theme.TextFaint, e.Date);
+        ImGui.SameLine(0, 4 * Scale);
+        ImGui.TextUnformatted(e.Time);
+
+        if (ImGui.TableSetColumnIndex(2))
+            ImGui.TextUnformatted(e.Used);
+        if (ImGui.TableSetColumnIndex(3))
+        {
+            if (e.Cleared)
+                ImGui.TextColored(Theme.Good, "Clear");
+            else
+                Theme.Dim(e.Count);
+        }
+
+        if (ImGui.TableSetColumnIndex(4))
+            ImGui.TextUnformatted(e.Zone);
+        if (ImGui.TableSetColumnIndex(5))
+            ImGui.TextUnformatted(e.Best);
+        if (ImGui.TableSetColumnIndex(7))
+            Theme.Dim(e.Zone);
+    }
+
+    private void DrawPullRow(PullSummary p, int i, float rowH, PullSummary? cur, bool nested)
+    {
+        var txt = RowText(p);
+        ImGui.TableNextRow(ImGuiTableRowFlags.None, rowH);
+        using var id = ImRaii.PushId(i);
+        if (ImGui.TableSetColumnIndex(0))
+            Theme.Dim(txt.Ordinal);
+
+        ImGui.TableSetColumnIndex(1);
+        var x = ImGui.GetCursorPosX();
+        var selected = cur != null && cur.StartOffset == p.StartOffset && cur.FilePath == p.FilePath;
+        if (ImGui.Selectable("##row", selected, ImGuiSelectableFlags.SpanAllColumns | ImGuiSelectableFlags.AllowItemOverlap))
+            service.Load(p);
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip(txt.Tooltip);
+        ImGui.SameLine();
+        ImGui.SetCursorPosX(x + (nested ? ImGui.GetFontSize() * 1.1f : 0));
+        ImGui.TextColored(Theme.TextFaint, txt.Date);
+        ImGui.SameLine(0, 4 * Scale);
+        ImGui.TextUnformatted(txt.Time);
+
+        if (ImGui.TableSetColumnIndex(2))
+            ImGui.TextUnformatted(txt.Duration);
+        if (ImGui.TableSetColumnIndex(3))
+            ImGui.TextColored(txt.ResultColor, txt.Result);
+        if (ImGui.TableSetColumnIndex(4))
+            ImGui.TextUnformatted(txt.Phase);
+        if (ImGui.TableSetColumnIndex(5))
+            ImGui.TextColored(p.BossHpPct >= 0 ? Theme.Text : Theme.TextFaint, txt.Boss);
+        if (ImGui.TableSetColumnIndex(6))
+            ImGui.TextColored(p.Deaths > 0 ? Theme.Text : Theme.TextFaint, txt.Deaths);
+        if (ImGui.TableSetColumnIndex(7))
+            Theme.Dim(p.ZoneName);
+    }
+
+    /// <summary>One entry into a duty (and its time limit, e.g. an Ultimate's two hours) with the pulls made in it.</summary>
+    private sealed class PullEntry
+    {
+        public PullEntry((string, long, uint) key, List<PullSummary> pulls)
+        {
+            Key = key;
+            Pulls = pulls;
+            var first = pulls.MinBy(p => p.StartTicks)!;
+            EnteredTicks = key.Item2 > 0 ? key.Item2 : first.StartTicks;
+            var entered = new DateTime(EnteredTicks, DateTimeKind.Utc).ToLocalTime();
+            Date = entered.ToString("MM-dd", CultureInfo.InvariantCulture);
+            Time = entered.ToString("HH:mm", CultureInfo.InvariantCulture);
+            Zone = first.ZoneName;
+            Cleared = pulls.Any(p => p.Outcome == PullOutcome.Clear);
+            Count = $"{pulls.Count} pull{(pulls.Count == 1 ? "" : "s")}";
+
+            // Time used of the duty's limit: from the duty's start (else the first pull) to the end of the last pull.
+            var dutyStart = pulls.Select(p => p.DutyStartTicks).FirstOrDefault(t => t > 0);
+            var limit = pulls.Max(p => p.DutyLimitS);
+            var used = TimeSpan.FromTicks(Math.Max(0, pulls.Max(p => p.EndTicks) - (dutyStart > 0 ? dutyStart : first.StartTicks)));
+            Used = Span(used);
+
+            // Furthest progress: the most phases reached, then the lowest boss HP.
+            var best = pulls.OrderByDescending(p => p.Phases.Count).ThenBy(p => p.BossHpPct < 0 ? 101 : p.BossHpPct).First();
+            Best = best.BossHpPct >= 0 ? $"{best.BossHpPct:0.0}%" : string.Empty;
+
+            var wipes = pulls.Count(p => p.Outcome == PullOutcome.Wipe);
+            var clears = pulls.Count(p => p.Outcome == PullOutcome.Clear);
+            Tooltip = $"{Zone}\nEntered {entered:ddd MM-dd HH:mm} · {Count}" +
+                      (wipes + clears > 0 ? $" ({wipes} wipe{(wipes == 1 ? "" : "s")}, {clears} clear{(clears == 1 ? "" : "s")})" : "") +
+                      (limit > 0
+                           ? $"\nTime limit: {Span(used)} of {Span(TimeSpan.FromSeconds(limit))} used{(dutyStart > 0 ? "" : " (from the first pull)")}"
+                           : $"\nFirst pull to last: {Span(used)}") +
+                      $"\nFurthest: {best.FurthestPhase ?? "–"}" + (best.BossHpPct >= 0 ? $", boss at {best.BossHpPct:0.0}%" : "") +
+                      "\n\nClick to show or hide its pulls.";
+        }
+
+        public (string File, long Entered, uint Zone) Key { get; }
+        public List<PullSummary> Pulls { get; }
+        public long EnteredTicks { get; }
+        public string Date { get; }
+        public string Time { get; }
+        public string Zone { get; }
+        public string Used { get; }
+        public bool Cleared { get; }
+        public string Count { get; }
+        public string Best { get; }
+        public string Tooltip { get; }
+        public bool Open { get; set; }
+
+        /// <summary>Pulls with the same log file, zone entry and zone belong to one entry.</summary>
+        public static (string, long, uint) KeyOf(PullSummary p) => (p.FilePath, p.EnteredTicks, p.ZoneId);
+
+        private static string Span(TimeSpan t) => t.TotalHours >= 1 ? $"{(int)t.TotalHours}h{t.Minutes:00}" : $"{t.Minutes}m";
     }
 
     private PullRowText RowText(PullSummary p)

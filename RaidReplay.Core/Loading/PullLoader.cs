@@ -818,23 +818,30 @@ internal sealed class PullBuilder : ILineConsumer
         }
     }
 
-    /// <summary>ACT logs abilities it has no name for as "unknown_xxxx"; use the encounter pack's name when it has one.</summary>
+    /// <summary>
+    /// Names from the encounter pack: the name players know an ability by (shownAs) replaces the log's; an ability the log
+    /// leaves unnamed ("unknown_xxxx") gets the pack's name.
+    /// </summary>
     private void NameUnknownAbilities(PullReplay replay)
     {
         if (enc == null)
             return;
+        string? Rename(uint id, string name) =>
+            !enc.Abilities.TryGetValue(id, out var def) ? null
+            : !string.IsNullOrEmpty(def.ShownAs) ? def.ShownAs
+            : name.StartsWith("unknown_", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(def.Name) ? def.Name
+            : null;
+
         foreach (var a in replay.Actions)
         {
-            if (a.Name.StartsWith("unknown_", StringComparison.OrdinalIgnoreCase) && enc.Abilities.TryGetValue(a.ActionId, out var def) &&
-                !string.IsNullOrEmpty(def.Name))
-                a.Name = def.Name;
+            if (Rename(a.ActionId, a.Name) is { } name)
+                a.Name = name;
         }
 
         foreach (var c in replay.Casts)
         {
-            if (c.Name.StartsWith("unknown_", StringComparison.OrdinalIgnoreCase) && enc.Abilities.TryGetValue(c.ActionId, out var def) &&
-                !string.IsNullOrEmpty(def.Name))
-                c.Name = def.Name;
+            if (Rename(c.ActionId, c.Name) is { } name)
+                c.Name = name;
         }
     }
 
