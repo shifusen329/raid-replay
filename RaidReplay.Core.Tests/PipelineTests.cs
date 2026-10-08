@@ -625,6 +625,19 @@ public class PackSchemaTests
         var dmu = TestEnv.Registry.ForTerritory(0x553)!.Def;
         Assert.Contains(dmu.Mitigation!.Mechanics, m => m.Phase == "p5");
     }
+
+    [Fact]
+    public void HeadMarkerIconsAreValidated()
+    {
+        Assert.ThrowsAny<Exception>(() => EncounterRegistry.Compile("""
+            { "key": "x", "match": { "territoryIds": ["0x1"] }, "headMarkers": { "0x1": { "label": "m", "icon": "bogus" } } }
+            """, "t"));
+        var ok = EncounterRegistry.Compile("""
+            { "key": "x", "match": { "territoryIds": ["0x1"] }, "headMarkers": { "0x1": { "label": "m", "icon": "stackGround" } } }
+            """, "t");
+        Assert.Equal("stackGround", ok.HeadMarkers[1].Icon);
+        Assert.Equal("stack", TestEnv.Registry.ForTerritory(0x553)!.HeadMarkers[0x02CB].Icon);
+    }
 }
 
 public class DamageMeterTests

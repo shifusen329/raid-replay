@@ -2,6 +2,27 @@
 
 Notable changes to Raid Replay. Versions match the plugin version shown in `/xlplugins`.
 
+## [0.0.7] - 2026-10-07
+
+### Added
+
+- **Boss tab in the replay window** (after Party). It shows each boss on the field at the playhead with its HP and whether it can be targeted. Below that are the statuses on it, in two groups: the party's debuffs and DoTs, with who applied them, then the boss's own effects. Each status has its icon, stacks and time left.
+- **Stack, spread and cone head markers have icons on the replay map,** in place of the plain diamond, and the legend shows them. In Dancing Mad these are Spell's Trouble's stack, spread and cone and the role-stack marker. Other markers keep the diamond.
+- **Encounter packs:** a head marker can name its `icon` (`stack`, `stackGround`, `spread`, `fireSpread` or `cone`).
+
+### Fixed
+
+- **No report for some Tele-trouncing pulls.** The analysis crashed, so the pull got no after-action report, when either:
+  - nobody stood near an arrow teleporter as it appeared;
+  - every other player was dead when someone was Confused.
+
+  This affected one pull out of 171 in the test logs.
+- **Statuses that were re-applied while still on** (a refreshed DoT, Kardia, Dance Partner, Closed Position):
+  - hovering a player showed the time until the status finally fell off, e.g. two minutes for Dia;
+  - if it was still on when the pull ended, it disappeared one duration after it was first applied, so death recaps left these buffs out.
+
+  Time left and stacks now follow the latest application.
+
 ## [0.0.6] - 2026-10-07
 
 ### Added

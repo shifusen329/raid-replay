@@ -260,8 +260,9 @@ public static class ArrowSquare
 
         foreach (var t in result.Teleporters.Where(t => t.Drop == null))
         {
+            // Nobody within reach (e.g. its dropper already dead) leaves it ownerless.
             t.FallbackOwner = r.Party.Select(p => (p, d: p.Track.TrySample(t.SpawnMs, out var pp, out _) ? Vector2.Distance(pp, t.Pos) : float.MaxValue))
-                               .Where(x => x.d <= 4).MinBy(x => x.d).p;
+                               .Where(x => x.d <= 4).OrderBy(x => x.d).Select(x => x.p).FirstOrDefault();
         }
 
         foreach (var d in result.Drops.Where(d => d.Heading != null))
@@ -594,8 +595,10 @@ public static class ArrowSquare
         foreach (var c in confused)
         {
             c.Target.Track.TrySample(c.StartMs, out var start, out _);
+            // Everyone else may already be dead: then there's no nearest player.
             var nearest = r.Party.Where(p => p != c.Target && ShapeValidator.IsAlive(r, p, c.StartMs))
-                           .Select(p => (p, d: p.Track.TrySample(c.StartMs, out var pp, out _) ? Vector2.Distance(pp, start) : float.MaxValue))
+                           .Select(p => (p: (Actor?)p, d: p.Track.TrySample(c.StartMs, out var pp, out _) ? Vector2.Distance(pp, start) : float.MaxValue))
+                           .DefaultIfEmpty((p: null, d: float.MaxValue))
                            .MinBy(x => x.d);
             var route = new ConfusedRoute
             {

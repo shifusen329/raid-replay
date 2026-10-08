@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Dalamud.NET.Sdk/15.0.0">
   <PropertyGroup>
-    <Version>0.0.6.0</Version>
+    <Version>0.0.7.0</Version>
     <!-- Manifest fields (see https://github.com/goatcorp/DalamudPackager/blob/827d88dc/DalamudPackager/DalamudPackager.cs#L420) -->
     <Author>shifusen329</Author>
     <Name>Raid Replay</Name>
@@ -14,6 +14,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\RaidReplay.Core\RaidReplay.Core.csproj" />
+  </ItemGroup>
+
+  <!-- Head-marker icons drawn on the replay canvas (an encounter pack's headMarkers[].icon). -->
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\Markers\*.png" LogicalName="RaidReplay.Markers.%(Filename)%(Extension)" />
   </ItemGroup>
 
   <!-- Dev plugins take their icon from images/icon.png next to the dll; installed ones use IconUrl. -->

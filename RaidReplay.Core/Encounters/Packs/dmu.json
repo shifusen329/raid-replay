@@ -441,9 +441,9 @@
     "0x02A4": { "label": "Ice ring REAL", "onBoss": true, "color": "#60c0ff", "durationS": 6, "conf": "v" },
     "0x02A5": { "label": "Thunder ring FAKE", "onBoss": true, "color": "#e0e040", "durationS": 6, "conf": "v" },
     "0x02A6": { "label": "Thunder ring REAL", "onBoss": true, "color": "#e0e040", "durationS": 6, "conf": "v" },
-    "0x02CB": { "label": "Spell's Trouble: stack", "color": "#40ff80", "durationS": 6, "conf": "v" },
-    "0x02CC": { "label": "Spell's Trouble: spread", "color": "#ff60c0", "durationS": 6, "conf": "v" },
-    "0x02CD": { "label": "Spell's Trouble: cone", "color": "#ffa040", "durationS": 6, "conf": "v" },
+    "0x02CB": { "label": "Spell's Trouble: stack", "color": "#40ff80", "icon": "stack", "durationS": 6, "conf": "v" },
+    "0x02CC": { "label": "Spell's Trouble: spread", "color": "#ff60c0", "icon": "spread", "durationS": 6, "conf": "v" },
+    "0x02CD": { "label": "Spell's Trouble: cone", "color": "#ffa040", "icon": "cone", "durationS": 6, "conf": "v" },
     "0x0150": { "label": "Limit cut 1", "color": "#ff5050", "durationS": 14, "conf": "v order = Ultima Blaster line order" },
     "0x0151": { "label": "Limit cut 2", "color": "#ff5050", "durationS": 14, "conf": "v" },
     "0x0152": { "label": "Limit cut 3", "color": "#ff5050", "durationS": 14, "conf": "v" },
@@ -452,7 +452,7 @@
     "0x01B6": { "label": "Limit cut 6", "color": "#5080ff", "durationS": 14, "conf": "v" },
     "0x01B7": { "label": "Limit cut 7", "color": "#5080ff", "durationS": 14, "conf": "v" },
     "0x01B8": { "label": "Limit cut 8", "color": "#5080ff", "durationS": 14, "conf": "v" },
-    "0x00A1": { "label": "Stack", "color": "#40ff80", "durationS": 5, "conf": "v P3 Knock Down (role stack) and P5 Forsaken" }
+    "0x00A1": { "label": "Stack", "color": "#40ff80", "icon": "stack", "durationS": 5, "conf": "v P3 Knock Down (role stack) and P5 Forsaken" }
   },
 
   "tethers": {

@@ -227,7 +227,7 @@ public sealed class ReplayRenderer
         var lineH = ImGui.GetTextLineHeight();
         var rowH = lineH + (2 * s);
         var sw = 18 * s;
-        const int fixedRows = 9;
+        const int fixedRows = 10;
         var rows = fixedRows + legendCategories.Count + (legendHasPads ? 1 : 0);
         var maxRows = Math.Max(4, (int)((view.CanvasSize.Y - (60 * s)) / rowH));
         var cols = (rows + maxRows - 1) / maxRows;
@@ -270,6 +270,19 @@ public sealed class ReplayRenderer
         var k = 5 * s;
         dl.AddQuadFilled(c4 + new Vector2(0, -k), c4 + new Vector2(k, 0), c4 + new Vector2(0, k), c4 + new Vector2(-k, 0), Palette.Rgba(1, 0.9f, 0.3f, 0.95f));
         Row("Head marker");
+
+        // Stack, spread and cone markers have their own icons; this row is wider than a swatch, so it lays itself out.
+        var icons = Cell(idx++);
+        var iconSize = lineH;
+        var ix = 0f;
+        foreach (var name in (string[])["stack", "spread", "cone"])
+        {
+            if (MarkerIcon(name) is { } icon)
+                dl.AddImage(icon, icons + new Vector2(ix, 0), icons + new Vector2(ix + iconSize, iconSize));
+            ix += iconSize + (2 * s);
+        }
+
+        dl.AddText(icons + new Vector2(ix + (4 * s), 0), text, "Stack / spread / cone");
         var c5 = Cell(idx) + new Vector2(0, lineH / 2);
         dl.AddLine(c5, c5 + new Vector2(sw, 0), Palette.Rgba(0.75f, 0.45f, 1f, 0.85f), 2.5f);
         Row("Tether");
@@ -863,8 +876,9 @@ public sealed class ReplayRenderer
                 tooltip.AppendLine($"  ({pos.X:0.0}, {pos.Y:0.0}) facing {heading * 180 / MathF.PI:0}°");
                 foreach (var s in r.Statuses.Where(s => s.Target == a && s.Active(t)).Take(10))
                 {
-                    var rem = s.EndMs == int.MaxValue ? "" : $" {(s.EndMs - t) / 1000f:0.0}s";
-                    tooltip.AppendLine($"  · {s.Name}{(s.Stacks > 1 ? $" x{s.Stacks}" : "")}{rem}");
+                    var stacks = s.AppliedAt(t).Stacks;
+                    var rem = s.ExpiresAt(t) is { } end ? $" {(end - t) / 1000f:0.0}s" : "";
+                    tooltip.AppendLine($"  · {s.Name}{(stacks > 1 ? $" x{stacks}" : "")}{rem}");
                 }
             }
         }
@@ -983,12 +997,39 @@ public sealed class ReplayRenderer
             var label = m.Label ?? $"{m.MarkerId:X4}";
             var def = r.Encounter?.HeadMarkers.GetValueOrDefault(m.MarkerId);
             var col = Palette.Parse(def?.Color, new Vector4(1, 0.9f, 0.3f, 1));
-            var s = 6 * Scale;
-            dl.AddQuadFilled(p + new Vector2(0, -s), p + new Vector2(s, 0), p + new Vector2(0, s), p + new Vector2(-s, 0), Palette.With(col, 0.95f));
+            float s;
+            if (MarkerIcon(def?.Icon) is { } icon)
+            {
+                s = 11 * Scale;
+                p -= new Vector2(0, 4 * Scale);
+                dl.AddImage(icon, p - new Vector2(s), p + new Vector2(s));
+            }
+            else
+            {
+                s = 6 * Scale;
+                dl.AddQuadFilled(p + new Vector2(0, -s), p + new Vector2(s, 0), p + new Vector2(0, s), p + new Vector2(-s, 0), Palette.With(col, 0.95f));
+            }
+
             var size = ImGui.CalcTextSize(label);
             QueueLabel(p + new Vector2(-size.X / 2, -s - size.Y), size, p, label, Palette.With(col, 1), 70, false);
         }
     }
+
+    /// <summary>Embedded resource of each head-marker icon (Resources/Markers), by its pack name.</summary>
+    private static readonly Dictionary<string, string> MarkerIcons = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["stack"] = "RaidReplay.Markers.stack.png",
+        ["stackGround"] = "RaidReplay.Markers.stack_ground.png",
+        ["spread"] = "RaidReplay.Markers.spread.png",
+        ["fireSpread"] = "RaidReplay.Markers.fire_spread.png",
+        ["cone"] = "RaidReplay.Markers.cone.png",
+    };
+
+    /// <summary>The texture of a head-marker icon, or null when the marker has none.</summary>
+    private static ImTextureID? MarkerIcon(string? name) =>
+        name != null && MarkerIcons.TryGetValue(name, out var resource)
+            ? Plugin.TextureProvider.GetFromManifestResource(typeof(Plugin).Assembly, resource).GetWrapOrEmpty().Handle
+            : null;
 
     private void DrawSigns(PullReplay r, int t)
     {

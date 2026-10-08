@@ -1067,7 +1067,8 @@ public static class WipeAnalyzer
             foreach (var c in cp.Cleanses)
             {
                 foreach (var s in r.Statuses.Where(s => s.Target.IsPlayer && s.Name.StartsWith(c.Status, StringComparison.OrdinalIgnoreCase) &&
-                                                        s.EndMs < r.EndMs && (s.Duration <= 0 || s.EndMs < s.StartMs + (s.Duration * 1000) - 1500)))
+                                                        s.EndMs < r.EndMs && s.AppliedAt(s.EndMs - 1) is var applied &&
+                                                        (applied.Duration <= 0 || s.EndMs < applied.T + (applied.Duration * 1000) - 1500)))
                 {
                     string how;
                     if (c.By == "heal")

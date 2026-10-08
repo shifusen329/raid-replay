@@ -5,6 +5,7 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
+using Dalamud.Interface.Textures;
 using Dalamud.Interface.Utility;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
@@ -57,6 +58,13 @@ public sealed class ReplayWindow : Window, IDisposable
         "Total damage in the window.",
     ];
 
+    private static readonly string[] BossStatusNames = ["Status", "Left", "From"];
+
+    private static readonly string[] BossStatusTips =
+    [
+        "Status on the boss (×N = stacks).", "Time left at the playhead.", "Who applied it (a pet's statuses show its owner).",
+    ];
+
     private static readonly ConditionalWeakTable<PullSummary, PullRowText> RowTexts = new();
 
     private readonly Plugin plugin;
@@ -76,6 +84,9 @@ public sealed class ReplayWindow : Window, IDisposable
 
     /// <summary>DPS tab window: 0 = since the pull started, 1 = since the phase started, 2 = the last 15 seconds.</summary>
     private int dpsWindow;
+
+    /// <summary>Boss tab: each boss's statuses over the pull, built once per replay.</summary>
+    private (PullReplay? Replay, Dictionary<Actor, List<StatusInterval>> ByBoss) bossStatuses;
     private List<PullSummary> filtered = [];
     private List<string> zones = ["All"];
     private (int, bool, int, string) filterState;
@@ -1167,6 +1178,12 @@ public sealed class ReplayWindow : Window, IDisposable
                 DrawParty(r);
         }
 
+        using (var tab = ImRaii.TabItem("Boss"))
+        {
+            if (tab.Success)
+                DrawBosses(r);
+        }
+
         using (var tab = ImRaii.TabItem("Info"))
         {
             if (tab.Success)
@@ -1482,6 +1499,92 @@ public sealed class ReplayWindow : Window, IDisposable
                 using (ImRaii.PushIndent(size + ImGui.GetStyle().ItemSpacing.X, false))
                     Theme.Wrapped(text, Theme.TextDim);
             }
+        }
+    }
+
+    /// <summary>Every boss on the field at the playhead: HP, and the statuses on it (the party's debuffs, then its own).</summary>
+    private void DrawBosses(PullReplay r)
+    {
+        var t = (int)timeMs;
+        if (!ReferenceEquals(bossStatuses.Replay, r))
+        {
+            bossStatuses = (r, r.Statuses.Where(s => s.Target.Kind == ActorKind.Boss)
+                                .GroupBy(s => s.Target).ToDictionary(g => g.Key, g => g.ToList()));
+        }
+
+        var bosses = r.Actors.Where(a => a.Kind == ActorKind.Boss && a.MaxHp > 0 && a.IsPresent(t) && !a.IsHidden(t))
+                      .OrderByDescending(a => a.MaxHp).ToList();
+        if (bosses.Count == 0)
+        {
+            Theme.Dim("No boss on the field at this moment.");
+            return;
+        }
+
+        using var child = Panel("##bosses", Vector2.Zero);
+        if (!child.Success)
+            return;
+        foreach (var boss in bosses)
+        {
+            using var id = ImRaii.PushId(boss.Index);
+            using (Theme.TitleFont())
+                Theme.Wrapped(boss.DisplayName, Theme.Text);
+            var hp = boss.Hp.At(t);
+            var targetable = boss.IsTargetable(t);
+            using (ImRaii.PushColor(ImGuiCol.PlotHistogram, targetable ? Theme.SevCritical : Theme.TextFaint))
+            {
+                ImGui.ProgressBar(hp >= 0 ? (float)hp / boss.MaxHp : 0, new Vector2(-1, 0),
+                                  (hp >= 0 ? $"{100.0 * hp / boss.MaxHp:0.0}%" : "?") + (targetable ? "" : " · untargetable"));
+            }
+
+            var active = bossStatuses.ByBoss.GetValueOrDefault(boss)?.Where(s => s.Active(t)).ToList() ?? [];
+            if (active.Count == 0)
+            {
+                Theme.Dim("No statuses.");
+            }
+            else
+            {
+                static bool FromParty(StatusInterval s) => s.Source is { IsPlayer: true } or { Kind: ActorKind.Pet };
+                DrawBossStatuses(r, "##party", "From the party", active.Where(FromParty).ToList(), t);
+                DrawBossStatuses(r, "##own", "Its own and other effects", active.Where(s => !FromParty(s)).ToList(), t);
+            }
+
+            ImGui.Spacing();
+        }
+    }
+
+    private void DrawBossStatuses(PullReplay r, string id, string caption, List<StatusInterval> statuses, int t)
+    {
+        if (statuses.Count == 0)
+            return;
+        Theme.Caption(caption);
+        using var table = ImRaii.Table(id, 3, ImGuiTableFlags.RowBg | ImGuiTableFlags.SizingStretchProp | ImGuiTableFlags.BordersInnerV);
+        if (!table.Success)
+            return;
+        ImGui.TableSetupColumn("Status", ImGuiTableColumnFlags.WidthStretch, 1.6f);
+        ImGui.TableSetupColumn("Left", ImGuiTableColumnFlags.WidthStretch, 0.45f);
+        ImGui.TableSetupColumn("From", ImGuiTableColumnFlags.WidthStretch, 1.1f);
+        Theme.TableHeaders(BossStatusNames, BossStatusTips);
+        var line = ImGui.GetTextLineHeight();
+        foreach (var s in statuses.OrderBy(s => s.ExpiresAt(t) ?? int.MaxValue).ThenBy(s => s.Name, StringComparer.Ordinal))
+        {
+            var stacks = s.AppliedAt(t).Stacks;
+            ImGui.TableNextRow();
+            ImGui.TableSetColumnIndex(0);
+            if (service.GameData.GetStatus(s.StatusId) is { Icon: > 0 } info)
+            {
+                // Stacked statuses have one icon per stack count, following the base icon.
+                var icon = info.Icon + (uint)(info.MaxStacks > 1 && stacks > 1 ? Math.Min(stacks, info.MaxStacks) - 1 : 0);
+                ImGui.Image(Plugin.TextureProvider.GetFromGameIcon(new GameIconLookup(icon)).GetWrapOrEmpty().Handle,
+                            new Vector2(line * 0.75f, line));
+                ImGui.SameLine(0, 4 * Scale);
+            }
+
+            ImGui.TextUnformatted(stacks > 1 ? $"{s.Name} ×{stacks}" : s.Name);
+            ImGui.TableSetColumnIndex(1);
+            ImGui.TextUnformatted(s.ExpiresAt(t) is { } end ? $"{Math.Max(0, end - t) / 1000f:0.0}s" : "–");
+            ImGui.TableSetColumnIndex(2);
+            var source = s.Source is { Kind: ActorKind.Pet } pet ? r.Party.FirstOrDefault(p => p.Id == pet.OwnerId) ?? pet : s.Source;
+            ImGui.TextUnformatted(source == null ? "–" : source.IsPlayer ? renderer.DisplayName(source) : source.DisplayName);
         }
     }
 

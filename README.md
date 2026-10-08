@@ -57,7 +57,7 @@ The engine works on any fight. It reads AoE shapes from the game's Action sheet 
 - event objects such as puddles and teleporters;
 - per-ability AoE shape, origin, heading and category (danger, fake, tower, stack, spread, tankbuster, bait, …), including telegraphs drawn before the hit;
 - towers spawned by map effects;
-- head-marker and tether labels;
+- head-marker and tether labels, and head-marker icons (stack, spread, cone, …);
 - soak counts and who soaks (e.g. the holder's role group), and fixed holder/soaker spots relative to waymarks;
 - arrow-teleporter puzzles: the intended layout and how far a teleport carries and chains;
 - failure abilities.

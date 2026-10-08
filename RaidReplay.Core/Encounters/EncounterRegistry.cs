@@ -238,6 +238,12 @@ public static class EncounterValidator
                 problems.Add("actors: rule needs bnpcBase, bnpcBases or name");
         }
 
+        foreach (var (id, m) in def.HeadMarkers)
+        {
+            if (m.Icon != null && !HeadMarkerDef.Icons.Contains(m.Icon))
+                problems.Add($"headMarkers[{id}]: unknown icon '{m.Icon}' (one of {string.Join(", ", HeadMarkerDef.Icons)})");
+        }
+
         foreach (var (id, a) in def.Abilities)
         {
             CheckShape(a.Shape, $"abilities[{id}]", problems);

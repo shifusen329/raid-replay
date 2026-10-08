@@ -434,8 +434,15 @@ public sealed class TriggerDrawDef
 
 public sealed class HeadMarkerDef
 {
+    /// <summary>Icons the replay can draw for a head marker (see <see cref="Icon"/>).</summary>
+    public static readonly string[] Icons = ["stack", "stackGround", "spread", "fireSpread", "cone"];
+
     public string Label { get; set; } = string.Empty;
     public string? Color { get; set; }
+
+    /// <summary>Icon drawn above the marked player, one of <see cref="Icons"/>; without one, a diamond in <see cref="Color"/>.</summary>
+    public string? Icon { get; set; }
+
     public bool OnBoss { get; set; }
     public float DurationS { get; set; } = 5;
     public string? Conf { get; set; }

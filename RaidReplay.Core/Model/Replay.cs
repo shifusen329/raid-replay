@@ -333,6 +333,9 @@ public sealed class TickEvent
     public uint EffectId { get; init; }
 }
 
+/// <summary>One application of a status: when, with how many stacks, for how long (seconds; 0 or 9999 = no timer).</summary>
+public readonly record struct StatusApplication(int T, int Stacks, float Duration);
+
 public sealed class StatusInterval
 {
     public required Actor Target { get; init; }
@@ -341,11 +344,50 @@ public sealed class StatusInterval
     public string Name { get; set; } = string.Empty;
     public int StartMs { get; init; }
     public int EndMs { get; set; } = int.MaxValue;
+
+    /// <summary>Duration of the latest application (seconds).</summary>
     public float Duration { get; set; }
+
+    /// <summary>Stacks of the latest application.</summary>
     public int Stacks { get; set; }
+
     public bool Removed { get; set; }
 
+    /// <summary>
+    /// Every application, oldest first, when the status was re-applied while active (a DoT refreshed, a stack added);
+    /// null when it was applied once.
+    /// </summary>
+    public List<StatusApplication>? Applications { get; set; }
+
     public bool Active(int t) => t >= StartMs && t < EndMs;
+
+    /// <summary>The application in force at <paramref name="t"/>: the latest one at or before t.</summary>
+    public StatusApplication AppliedAt(int t)
+    {
+        if (Applications is not { Count: > 0 } all)
+            return new StatusApplication(StartMs, Stacks, Duration);
+        var current = all[0];
+        foreach (var a in all)
+        {
+            if (a.T > t)
+                break;
+            current = a;
+        }
+
+        return current;
+    }
+
+    /// <summary>
+    /// When the status runs out, as seen at <paramref name="t"/>: the application in force plus its duration, or its
+    /// removal if that came sooner. Null when the log gives no timer (permanent effects) and it was never removed.
+    /// </summary>
+    public int? ExpiresAt(int t)
+    {
+        var a = AppliedAt(t);
+        if (a.Duration is > 0 and < 9000)
+            return Math.Min(a.T + (int)(a.Duration * 1000), EndMs);
+        return Removed ? EndMs : null;
+    }
 }
 
 public sealed class DeathEvent

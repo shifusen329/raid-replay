@@ -776,6 +776,8 @@ internal sealed class PullBuilder : ILineConsumer
             {
                 if (open.TryGetValue(key, out var existing))
                 {
+                    existing.Applications ??= [new StatusApplication(existing.StartMs, existing.Stacks, existing.Duration)];
+                    existing.Applications.Add(new StatusApplication(s.T, s.Stacks, s.Duration));
                     existing.Duration = s.Duration;
                     existing.Stacks = s.Stacks;
                     continue;
@@ -800,8 +802,10 @@ internal sealed class PullBuilder : ILineConsumer
         foreach (var interval in open.Values)
         {
             var end = replay.LastMs;
-            if (interval.Duration is > 0 and < 9000)
-                end = Math.Min(end, interval.StartMs + (int)(interval.Duration * 1000));
+            // Still on at the end of the log: it runs out its latest application (a refreshed DoT lasts past its first).
+            var last = interval.AppliedAt(int.MaxValue);
+            if (last.Duration is > 0 and < 9000)
+                end = Math.Min(end, last.T + (int)(last.Duration * 1000));
             if (interval.Target.DespawnMs < end)
                 end = interval.Target.DespawnMs;
             interval.EndMs = Math.Max(interval.StartMs, end);

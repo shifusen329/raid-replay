@@ -131,7 +131,7 @@ public sealed class ConfigWindow : Window, IDisposable
         Toggle("Helpers / hidden actors", config.ShowHelpers, v => config.ShowHelpers = v, "Invisible helper actors that cast many boss AoEs.", ref changed);
 
         Theme.Caption("MECHANICS");
-        Toggle("Head markers", config.ShowHeadMarkers, v => config.ShowHeadMarkers = v, "Diamond and label above players with a head marker.", ref changed);
+        Toggle("Head markers", config.ShowHeadMarkers, v => config.ShowHeadMarkers = v, "Icon (stack, spread, cone…) or diamond, and label, above players with a head marker.", ref changed);
         Toggle("Tethers", config.ShowTethers, v => config.ShowTethers = v, "Lines between tethered actors.", ref changed);
         Toggle("Fake AoEs", config.ShowFakeAoes, v => config.ShowFakeAoes = v, "Telegraphs that do nothing (shown faint grey).", ref changed);
         Toggle("Inferred telegraphs", config.ShowInferredTelegraphs, v => config.ShowInferredTelegraphs = v, "AoEs not visible in the log, reconstructed from the encounter pack (thin outlines).", ref changed);
