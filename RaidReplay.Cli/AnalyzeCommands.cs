@@ -71,8 +71,11 @@ internal static partial class CliApp
         Console.WriteLine();
         foreach (var inc in report.Incidents)
         {
-            var mark = inc.IsRootCause ? ">>" : "  ";
-            Console.WriteLine($"{mark} {FormatDuration(inc.T),8} [{inc.Kind}] {inc.Title}{(inc.Mechanic != null ? $"  <{inc.Mechanic}>" : "")}");
+            // >> root cause, + part of the collapse; [prog point] where what caused it happened.
+            var mark = inc.IsRootCause ? ">>" : inc.InCollapse ? " +" : "  ";
+            var prog = report.Pull.ProgPointAt(inc.CauseT)?.Name;
+            Console.WriteLine($"{mark} {FormatDuration(inc.T),8} [{inc.Kind}] {inc.Title}{(inc.Mechanic != null ? $"  <{inc.Mechanic}>" : "")}" +
+                              (prog != null ? $"  [{prog}]" : ""));
             if (inc.Detail.Length > 0)
                 Console.WriteLine($"            {inc.Detail}");
             if (!inc.IsRootCause && !allSnapshots)

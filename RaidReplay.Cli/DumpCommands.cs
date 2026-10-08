@@ -55,6 +55,13 @@ internal static partial class CliApp
         Console.WriteLine("phases:");
         foreach (var ph in r.Phases)
             Console.WriteLine($"  {(ph.IsSegment ? "  " : "")}{FormatDuration(ph.StartMs),8} .. {FormatDuration(ph.EndMs),8}  {ph.Name}");
+        if (r.ProgPoints.Count > 0)
+        {
+            Console.WriteLine("prog points:");
+            foreach (var pp in r.ProgPoints)
+                Console.WriteLine($"  {FormatDuration(pp.StartMs),8} .. {FormatDuration(pp.EndMs),8}  {pp.Name}");
+        }
+
         Console.WriteLine();
         Console.WriteLine("deaths:");
         foreach (var d in r.Deaths)

@@ -11,6 +11,9 @@ public sealed class PhaseSpan
     public int StartMs { get; init; }
     public int EndMs { get; set; }
     public bool IsSegment { get; init; }
+
+    /// <summary>For a prog point: the id of the phase it belongs to.</summary>
+    public string? Phase { get; init; }
 }
 
 public sealed class MechanicMarker
@@ -132,6 +135,9 @@ public sealed class PullReplay
     public int InitialMapId { get; init; }
 
     public List<PhaseSpan> Phases { get; } = [];
+
+    /// <summary>The prog points reached (pack <c>progPoints</c>), in order; empty without them.</summary>
+    public List<PhaseSpan> ProgPoints { get; } = [];
     public List<MechanicMarker> Mechanics { get; } = [];
     public List<AoeInstance> Aoes { get; } = [];
     public List<string> Diagnostics { get; } = [];
@@ -165,6 +171,19 @@ public sealed class PullReplay
         }
 
         return name ?? string.Empty;
+    }
+
+    /// <summary>The prog point at time t, if the pack has them.</summary>
+    public PhaseSpan? ProgPointAt(int t)
+    {
+        PhaseSpan? at = null;
+        foreach (var p in ProgPoints)
+        {
+            if (p.StartMs <= t)
+                at = p;
+        }
+
+        return at;
     }
 
     /// <summary>Where waymark <paramref name="slot"/> (0–3 = A–D, 4–7 = 1–4) was at time t, if placed.</summary>

@@ -694,6 +694,42 @@ public class PackSchemaTests
         Assert.Equal("nearestToHolder", dmu.Abilities[0xBAC2].Aim);
         Assert.Equal("cone (Spell's Trouble)", dmu.Abilities[0xBAC2].ShownAs);
     }
+
+    [Fact]
+    public void ProgPointsAfterTheFirstNeedAStart()
+    {
+        Assert.ThrowsAny<Exception>(() => EncounterRegistry.Compile("""
+            { "key": "x", "match": { "territoryIds": ["0x1"] }, "phases": [ { "id": "p1", "name": "P1", "start": { "pullStart": true },
+              "progPoints": [ { "id": "a", "name": "A" }, { "id": "b", "name": "B" } ] } ] }
+            """, "t"));
+        var dmu = TestEnv.Registry.ForTerritory(0x553)!;
+        Assert.Equal(24, dmu.Def.Phases.Sum(p => p.ProgPoints.Count));
+    }
+
+    [Fact]
+    public void IncidentsAreGroupedByTheProgPointWhereTheyHappened()
+    {
+        // Pull #63 (10-01) wiped at 3:06, just into the last P1 prog point; P1's timeline is fixed, so each section
+        // starts within a second of the same time in every pull.
+        var r = PullLoader.Load(TestEnv.OnlyPull("dmu_p1_confetti_holder.log"), null, TestEnv.Registry);
+        Assert.Equal(["Graven 1: Fire + Ice", "Graven 1: Lasers + Towers", "Graven 1: First Confetti", "Graven 2: Puddles",
+                      "Graven 2: Second Confetti", "Graven 3: Arrows", "Gaze + Fire + Lightning"], r.ProgPoints.Select(p => p.Name));
+        Assert.All(r.ProgPoints, p => Assert.Equal("p1", p.Phase));
+        int[] starts = [0, 41_600, 48_600, 77_300, 116_300, 146_800, 184_100];
+        Assert.All(r.ProgPoints.Zip(starts), x => Assert.InRange(x.First.StartMs, x.Second - 1000, x.Second + 1000));
+
+        // The confetti the holder took off their corner is in the arrows section, with the deaths it caused, which are
+        // part of the collapse; the mitigation missed in the first confetti is not.
+        var report = WipeAnalyzer.Analyze(r);
+        Assert.Equal("Graven 3: Arrows", r.ProgPointAt(report.RootCause!.CauseT)?.Name);
+        var deaths = report.Incidents.Where(i => i.Kind == IncidentKind.Death && i.T < 175_000).ToList();
+        Assert.NotEmpty(deaths);
+        Assert.All(deaths, d => Assert.True(d.InCollapse));
+        Assert.All(deaths, d => Assert.Equal("Graven 3: Arrows", r.ProgPointAt(d.CauseT)?.Name));
+        var early = report.Incidents.Where(i => i.Kind == IncidentKind.MissingMitigation && i.T < 60_000).ToList();
+        Assert.NotEmpty(early);
+        Assert.All(early, i => Assert.False(i.InCollapse));
+    }
 }
 
 public class DamageMeterTests

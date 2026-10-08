@@ -61,6 +61,19 @@
         { "id": "p1_gi2", "name": "Graven Image II", "start": { "director": { "command": "0x80000001", "p1": ["0x4F42"] } } },
         { "id": "p1_gi3", "name": "Graven Image III", "start": { "director": { "command": "0x80000001", "p1": ["0x4F43"] } } },
         { "id": "p1_enrage", "name": "Enrage", "start": { "castStart": { "ids": ["0xBABB"] } } }
+      ],
+      "progPoints": [
+        // Prog points are the section headings of the wtfdig.info UMAD guide (MIT); P1's timeline is fixed, so boundaries sit
+        // between one section's last hit and the next one's first (timed on 4 wipes and the 10-05 clear, ±0.4s).
+        { "id": "gi1_fire_ice", "name": "Graven 1: Fire + Ice" },
+        { "id": "gi1_lasers_towers", "name": "Graven 1: Lasers + Towers", "start": { "castStart": { "ids": ["0xBAA6"] } } },
+        { "id": "gi1_confetti", "name": "Graven 1: First Confetti", "start": { "castStart": { "ids": ["0xBA94"] }, "occurrence": 2 } },
+        { "id": "gi2_puddles", "name": "Graven 2: Puddles", "start": { "castStart": { "ids": ["0xBCF2"] }, "occurrence": 2 } },
+        // No cast between the second half-room (+22.2s) and the second confetti (+25.9s): timed from the 2nd Revolting Ruin III.
+        { "id": "gi2_confetti", "name": "Graven 2: Second Confetti", "start": { "castStart": { "ids": ["0xC403"] }, "occurrence": 2, "delayS": 24 } },
+        { "id": "gi3_arrows", "name": "Graven 3: Arrows", "start": { "castStart": { "ids": ["0xBAB9"] } } },
+        // After the Confused players' chains (~3:00); the gaze, fire and lightning resolve at ~3:07.
+        { "id": "gaze_fire_lightning", "name": "Gaze + Fire + Lightning", "start": { "castStart": { "ids": ["0xBA94"] }, "occurrence": 3, "delayS": 2.5 } }
       ]
     },
     {
@@ -76,6 +89,10 @@
         { "id": "p2_loj", "name": "Light of Judgment II", "start": { "castStart": { "ids": ["0xBABD"] } } },
         { "id": "p2_trine", "name": "Trine + Wings of Destruction", "start": { "castStart": { "ids": ["0xBADF"] } } },
         { "id": "p2_ue2", "name": "Ultimate Embrace II", "start": { "castStart": { "ids": ["0xC24C"] } } }
+      ],
+      "progPoints": [
+        { "id": "p2_forsaken_pp", "name": "Forsaken" },
+        { "id": "p2_trines", "name": "Trines", "start": { "castStart": { "ids": ["0xBADF"] } } }
       ]
     },
     {
@@ -102,6 +119,14 @@
         { "id": "p3_white_hole", "name": "White Hole + Implosion II + lasers 9-10", "start": { "castStart": { "ids": ["0xBD66"] } } },
         { "id": "p3_stomp", "name": "Stomp-a-Mole + Knock Down", "start": { "castStart": { "ids": ["0xBB0F", "0xBAEF"] } } },
         { "id": "p3_enrage", "name": "Meteor (enrage)", "start": { "castStart": { "ids": ["0xC61E"] } } }
+      ],
+      "progPoints": [
+        { "id": "p3_decisive_pp", "name": "The Decisive Battle" },
+        { "id": "p3_bowels_pp", "name": "Bowels of Agony", "start": { "castStart": { "ids": ["0xBAF2"] } } },
+        { "id": "p3_vacuum_lc", "name": "Vacuum Wave + Limit Cut", "start": { "castStart": { "ids": ["0xBB13"] } } },
+        { "id": "p3_accretion", "name": "Earthquake: Accretion", "start": { "castStart": { "ids": ["0xC2E2"] }, "occurrence": 2 } },
+        { "id": "p3_black_holes", "name": "Earthquake: Black Holes", "start": { "castStart": { "ids": ["0xBAE6", "0xBAE7"] } } },
+        { "id": "p3_stompies", "name": "Earthquake: Stompies", "start": { "castStart": { "ids": ["0xBB0F", "0xBAEF"] } } }
       ]
     },
     {
@@ -115,6 +140,11 @@
         { "id": "p4_blowout", "name": "Blizzard III Blowout: long stacks, spreads, bombs, gazes", "start": { "castStart": { "ids": ["0xBA95"] } } },
         { "id": "p4_mana_release", "name": "Mana Release", "start": { "castStart": { "ids": ["0xBAA5"] } } },
         { "id": "p4_upsurge", "name": "Ultima Upsurge (25% check)", "start": { "castStart": { "ids": ["0xC24A"] }, "occurrence": 2 } }
+      ],
+      "progPoints": [
+        { "id": "p4_debuffs", "name": "Kefka Says (Debuffs)" },
+        // Mana Release lets out the stored stacks, spreads and gazes.
+        { "id": "p4_resolution", "name": "Kefka Says (Resolution)", "start": { "castStart": { "ids": ["0xBAA5"] } } }
       ]
     },
     {
@@ -131,6 +161,15 @@
         { "id": "p5_orchestra2", "name": "Maddening Orchestra II", "start": { "castStart": { "ids": ["0xBB50"] } } },
         { "id": "p5_forsaken", "name": "Forsaken", "start": { "castStart": { "ids": ["0xBB35"] } } },
         { "id": "p5_enrage", "name": "Forsaken Null (enrage)", "start": { "castStart": { "ids": ["0xBB3A"] } } }
+      ],
+      "progPoints": [
+        { "id": "p5_autos", "name": "Autos" },
+        { "id": "p5_flood_pp", "name": "Chaotic Flood", "start": { "castStart": { "ids": ["0xC13F"] } } },
+        { "id": "p5_orchestra_pp", "name": "Maddening Orchestra", "start": { "castStart": { "ids": ["0xBB50"] } } },
+        { "id": "p5_celestriad_pp", "name": "Celestriad (Towers)", "start": { "castStart": { "ids": ["0xBB42"] } } },
+        { "id": "p5_apocalypse_pp", "name": "Stray Apocalypse", "start": { "castStart": { "ids": ["0xBB3B"] } } },
+        { "id": "p5_orchestra2_pp", "name": "Maddening Orchestra 2", "start": { "castStart": { "ids": ["0xBB50"] }, "occurrence": 2 } },
+        { "id": "p5_forsaken_pp", "name": "Forsaken (Enrage)", "start": { "castStart": { "ids": ["0xBB35"] } } }
       ]
     }
   ],

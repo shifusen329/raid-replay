@@ -42,11 +42,12 @@ public sealed class WipeCard
             All.Add(row);
             if (ReferenceEquals(inc, root))
                 Root = row;
-            else
+            else if (inc.InCollapse)
                 Contributing.Add(row);
         }
 
-        ContributingTitle = $"Contributing incidents ({Contributing.Count})";
+        BuildOutline(report);
+        OutlineTitle = $"Incidents ({All.Count})";
 
         foreach (var slot in PartySlots.Order)
         {
@@ -74,8 +75,14 @@ public sealed class WipeCard
     public string Meta { get; }
     public IncidentRow? Root { get; }
     public List<IncidentRow> All { get; } = [];
+
+    /// <summary>Incidents of the final collapse (and the chain traced back from the root), other than the root.</summary>
     public List<IncidentRow> Contributing { get; } = [];
-    public string ContributingTitle { get; private set; } = string.Empty;
+
+    /// <summary>Every incident, grouped by prog point (or by phase where the pack has none), in pull order.</summary>
+    public List<OutlineSection> Outline { get; } = [];
+
+    public string OutlineTitle { get; } = string.Empty;
     public List<Culprit> Party { get; } = [];
     public List<string> Notes { get; } = [];
     public string? Footnote { get; }
@@ -115,6 +122,32 @@ public sealed class WipeCard
     {
         var slot = Report.SlotOf(a);
         return slot.Length > 0 ? slot : Jobs.Abbrev(a.Job);
+    }
+
+    /// <summary>
+    /// One section per prog point reached; a phase without prog points is one section. Each incident goes where what
+    /// caused it happened (a death under the hit that killed them).
+    /// </summary>
+    private void BuildOutline(WipeReport report)
+    {
+        var r = report.Pull;
+        var phases = r.Phases.Where(p => !p.IsSegment).ToList();
+        foreach (var pp in r.ProgPoints)
+            Outline.Add(new OutlineSection(pp.Id, pp.Name, phases.FirstOrDefault(p => p.Id == pp.Phase)?.Name, pp.StartMs, pp.EndMs));
+        foreach (var ph in phases.Where(ph => r.ProgPoints.All(pp => pp.Phase != ph.Id)))
+            Outline.Add(new OutlineSection(ph.Id, ph.Name, null, ph.StartMs, ph.EndMs));
+        Outline.Sort((a, b) => a.StartMs.CompareTo(b.StartMs));
+        if (Outline.Count == 0)
+            Outline.Add(new OutlineSection("pull", "Pull", null, 0, r.EndMs));
+
+        foreach (var row in All)
+        {
+            var t = row.Inc.CauseT;
+            (Outline.LastOrDefault(s => s.StartMs <= t) ?? Outline[0]).Rows.Add(row);
+        }
+
+        foreach (var s in Outline)
+            s.Finish();
     }
 
     private void BuildMitigation(WipeReport report)
@@ -196,6 +229,16 @@ public sealed class WipeCard
                 sb.AppendLine($"… and {Contributing.Count - 15} more");
         }
 
+        // Everything else, by prog point.
+        var earlier = Outline.Select(sec => (sec, rows: sec.Rows.Where(r => !r.Inc.InCollapse).ToList())).Where(x => x.rows.Count > 0).ToList();
+        if (earlier.Count > 0)
+        {
+            sb.AppendLine("Also in this pull:");
+            foreach (var (sec, rows) in earlier)
+                sb.Append("• ").Append(sec.Name).Append(": ").Append(string.Join("; ", rows.Take(3).Select(r => $"{r.Time} {r.Title}")))
+                  .Append(rows.Count > 3 ? $"; … and {rows.Count - 3} more" : string.Empty).AppendLine();
+        }
+
         foreach (var n in Notes)
             sb.Append("· ").AppendLine(n);
         return sb.ToString().TrimEnd();
@@ -249,6 +292,41 @@ public sealed class WipeCard
 
         more = true;
         return detail[..140].TrimEnd() + "…";
+    }
+}
+
+/// <summary>A prog point (or phase) of the report's incident outline.</summary>
+public sealed class OutlineSection(string id, string name, string? phase, int startMs, int endMs)
+{
+    public string Id { get; } = id;
+    public string Name { get; } = name;
+
+    /// <summary>The phase a prog point belongs to (shown as a heading above its prog points); null for a phase section.</summary>
+    public string? Phase { get; } = phase;
+
+    public int StartMs { get; } = startMs;
+    public int EndMs { get; } = endMs;
+    public List<IncidentRow> Rows { get; } = [];
+    public string Range { get; private set; } = string.Empty;
+    public Vector4 Color { get; private set; }
+    public bool HasRoot { get; private set; }
+
+    /// <summary>Holds the root cause or part of the collapse, so it starts open.</summary>
+    public bool DefaultOpen { get; private set; }
+
+    public string Tooltip { get; private set; } = string.Empty;
+
+    internal void Finish()
+    {
+        Range = $"{Timeline.Fmt(Math.Max(0, StartMs))[..^2]}–{Timeline.Fmt(EndMs)[..^2]}";
+        var worst = Rows.MaxBy(r => (r.Inc.IsRootCause, Theme.Severity(r.Inc) == Theme.SevCritical, r.Inc.Severity));
+        Color = worst != null ? Theme.Severity(worst.Inc) : Theme.Good;
+        HasRoot = Rows.Any(r => r.Inc.IsRootCause);
+        DefaultOpen = HasRoot || Rows.Any(r => r.Inc.InCollapse);
+        var kinds = Rows.GroupBy(r => r.Kind).Select(g => g.Count() > 1 ? $"{g.Count()} × {g.Key}" : g.Key);
+        Tooltip = $"{Name} · {Range}" + (Phase != null ? $" · {Phase}" : "") +
+                  (Rows.Count == 0 ? "\nNothing went wrong here." : $"\n{string.Join(", ", kinds)}" + (HasRoot ? "\nHolds the root cause." : "")) +
+                  (Rows.Count > 0 ? "\n\nClick to show or hide its incidents." : "");
     }
 }
 

@@ -96,6 +96,13 @@ public sealed class Incident
 
     public int Severity { get; set; }
     public bool IsRootCause { get; set; }
+
+    /// <summary>Part of what lost the pull: the root cause, the final collapse it starts, or the chain traced back to it.</summary>
+    public bool InCollapse { get; set; }
+
+    /// <summary>When what caused it happened: a death's killing blow (the death is logged up to a few seconds later), else <see cref="T"/>.</summary>
+    public int CauseT => Death?.KillingBlow is { } kb ? Math.Min(kb.T, T) : T;
+
     public List<PlayerSnapshot> Snapshot { get; } = [];
 
     /// <summary>Incident-specific "should have been" positions that take precedence over learned/safe-spot ones.</summary>

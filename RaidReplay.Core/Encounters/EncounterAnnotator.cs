@@ -52,6 +52,27 @@ public static class EncounterAnnotator
             });
         }
 
+        // Prog points end where the next one, or the next phase, begins.
+        var progs = marks.Where(m => m.Kind is MarkKind.ProgPoint or MarkKind.Phase).OrderBy(m => m.Ticks).ToList();
+        string? inPhase = null;
+        for (var i = 0; i < progs.Count; i++)
+        {
+            if (progs[i].Kind == MarkKind.Phase)
+            {
+                inPhase = progs[i].Id;
+                continue;
+            }
+
+            var start = r.ToMs(progs[i].Ticks);
+            if (start > r.EndMs)
+                break;
+            r.ProgPoints.Add(new PhaseSpan
+            {
+                Id = progs[i].Id, Name = progs[i].Name, Phase = inPhase, StartMs = start,
+                EndMs = i + 1 < progs.Count ? Math.Min(r.EndMs, r.ToMs(progs[i + 1].Ticks)) : r.EndMs,
+            });
+        }
+
         var segs = marks.Where(m => m.Kind is MarkKind.Segment or MarkKind.Phase).OrderBy(m => m.Ticks).ToList();
         for (var i = 0; i < segs.Count; i++)
         {

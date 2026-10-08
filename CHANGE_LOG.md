@@ -2,6 +2,19 @@
 
 Notable changes to Raid Replay. Versions match the plugin version shown in `/xlplugins`.
 
+## [0.0.9] - 2026-10-08
+
+### Changed
+
+- **The report groups its incidents by prog point** instead of listing every one as "Contributing".
+  - Dancing Mad's prog points are the section headings of the wtfdig.info UMAD guide, under their phase: "Graven 1: Fire + Ice", "Graven 1: Lasers + Towers", … "Forsaken (Enrage)". Only the ones the pull reached are shown.
+  - Each one shows its time range, and an alert with the number of incidents when something went wrong there, or a check when nothing did. Click it to show or hide its incidents.
+  - The prog point holding the root cause, and those holding the collapse it started, are open. The rest stay closed, e.g. a mitigation missed at 0:50 in a pull lost at 6:28.
+  - A death is filed under the hit that killed them, not the death line the log writes a few seconds later.
+  - The full summary copied for Discord lists the contributing incidents, then the rest by prog point.
+- **Encounter packs** can list `progPoints` per phase: a name, and when it starts (the first can start with the phase). Starts use the same triggers as segments.
+- **Log index:** the Dancing Mad pack changed, so logs with Dancing Mad pulls are indexed again once.
+
 ## [0.0.8] - 2026-10-08
 
 ### Added

@@ -509,6 +509,13 @@ public sealed class PhaseDef
     public string Name { get; set; } = string.Empty;
     public TriggerDef? Start { get; set; }
     public List<SegmentDef> Segments { get; set; } = [];
+
+    /// <summary>
+    /// The sections a static names its progress by, e.g. a guide's headings ("Graven 1: Fire + Ice"). Coarser than
+    /// segments; the report groups incidents by them.
+    /// </summary>
+    public List<ProgPointDef> ProgPoints { get; set; } = [];
+
     public float? ExpectedS { get; set; }
     public string? Conf { get; set; }
 }
@@ -518,6 +525,15 @@ public sealed class SegmentDef
     public string Id { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public TriggerDef Start { get; set; } = new();
+}
+
+public sealed class ProgPointDef
+{
+    public string Id { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>When it begins. Only a phase's first prog point may leave it out, to begin with the phase.</summary>
+    public TriggerDef? Start { get; set; }
 }
 
 public sealed class MechanicDef

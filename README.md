@@ -17,6 +17,7 @@ A Dalamud plugin for FINAL FANTASY XIV that rebuilds every pull from your ACT ne
   - opens a **Wipe Report** with:
     - the verdict (DPS check, mechanic failure, avoidable damage, stack/spread error, death, fell off);
     - the root cause and the incidents that led to it;
+    - every incident grouped by prog point (e.g. "Graven 2: Puddles"), with an alert and a count on each prog point where something went wrong. The root cause's prog point, and those holding the collapse it started, are open; click any other to see its incidents;
     - for each incident, where every raider was, which way they faced, their HP, and **where they should have been**.
 - **"Should have been"** comes from three sources:
   - **Learned positions:** where that player usually stood at that moment in your pulls where the mechanic went fine. Learned in the background from your log history.
@@ -61,6 +62,7 @@ The engine works on any fight. It reads AoE shapes from the game's Action sheet 
 - towers spawned by map effects;
 - head-marker and tether labels, and head-marker icons (stack, spread, cone, …);
 - soak counts and who soaks (e.g. the holder's role group), and fixed holder/soaker spots relative to waymarks;
+- prog points: the sections a static names its progress by, which the report groups incidents by. Dancing Mad's are the section headings of the [wtfdig.info UMAD guide](https://wtfdig.info/ultimates/umad) (MIT), from "Graven 1: Fire + Ice" to "Forsaken (Enrage)";
 - arrow-teleporter puzzles: the intended layout, how far a teleport carries and chains, and attacks that hit harder for each arrow left off its spot;
 - failure abilities.
 

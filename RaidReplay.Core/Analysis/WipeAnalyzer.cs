@@ -1916,7 +1916,15 @@ public static class WipeAnalyzer
         }
 
         if (root != null)
+        {
             root.IsRootCause = true;
+            root.InCollapse = true;
+        }
+
+        // Before an enrage, the deaths of the collapse cost the DPS: contributing too.
+        foreach (var i in cascade.Concat(traced))
+            i.InCollapse = true;
+
         report.RootCause = root;
     }
 

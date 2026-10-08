@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
@@ -13,7 +15,8 @@ namespace RaidReplay.Windows;
 
 /// <summary>
 /// The after-action "wipe card": verdict and chips, the root-cause card (culprits, one-line detail, optional
-/// mini-map of the moment), compact expandable cards for contributing incidents, and the mitigation plan check.
+/// mini-map of the moment), every incident grouped by prog point (expandable; the root cause's and the collapse's open),
+/// and the mitigation plan check.
 /// All strings come pre-formatted from <see cref="WipeCard"/>; drawing is layout only.
 /// </summary>
 public sealed class ReportView
@@ -47,6 +50,10 @@ public sealed class ReportView
     private bool showAllMitigation;
     private bool rootMore;
     private DateTime copiedAt;
+
+    // Outline sections the user opened or closed, against their default, for the report on screen.
+    private readonly HashSet<string> toggled = [];
+    private WipeReport? toggledFor;
 
     public ReportView(Configuration config, IGameData gameData)
     {
@@ -108,7 +115,7 @@ public sealed class ReportView
         DrawHero(card, report, miniMap, ref clicked);
         DrawParty(card);
         ImGui.Spacing();
-        DrawContributing(card, ref clicked);
+        DrawOutline(card, ref clicked);
         if (card.Mitigation.Count > 0)
         {
             ImGui.Spacing();
@@ -149,7 +156,7 @@ public sealed class ReportView
             ImGui.SetCursorScreenPos(new Vector2(x, ImGui.GetCursorScreenPos().Y));
         if (Theme.IconButton("##copy", RecentlyCopied ? FontAwesomeIcon.Check : FontAwesomeIcon.Clipboard,
                              RecentlyCopied ? "Copied!" : "Copy the summary as one line for the game's chat.\n" +
-                                                          "Right-click: the full summary for Discord, with every contributing incident."))
+                                                          "Right-click: the full summary for Discord, with the contributing incidents and the rest by prog point."))
             CopySummary(report);
         else if (ImGui.IsItemHovered() && ImGui.IsItemClicked(ImGuiMouseButton.Right))
             CopySummary(report, true);
@@ -291,20 +298,91 @@ public sealed class ReportView
         }
     }
 
-    // ---- contributing incidents ------------------------------------------------------------------------------
+    // ---- incidents by prog point ------------------------------------------------------------------------------
 
-    private void DrawContributing(WipeCard card, ref Incident? clicked)
+    private void DrawOutline(WipeCard card, ref Incident? clicked)
     {
-        Theme.SectionTitle(card.ContributingTitle);
-        if (card.Contributing.Count == 0)
+        if (!ReferenceEquals(toggledFor, card.Report))
         {
-            Theme.Dim("No other incidents.");
+            toggled.Clear();
+            toggledFor = card.Report;
+        }
+
+        Theme.SectionTitle(card.OutlineTitle);
+        var width = ImGui.GetContentRegionAvail().X;
+
+        // Nothing to group by (no phases): the incidents other than the root, as a list.
+        if (card.Outline.Count == 1 && card.Outline[0].Id == "pull")
+        {
+            if (card.All.Count <= (card.Root != null ? 1 : 0))
+                Theme.Dim("No other incidents.");
+            foreach (var row in card.All.Where(r => !ReferenceEquals(r, card.Root)))
+                DrawIncidentRow(row, width, ref clicked);
             return;
         }
 
-        var width = ImGui.GetContentRegionAvail().X;
-        foreach (var row in card.Contributing)
-            DrawIncidentRow(row, width, ref clicked);
+        string? phase = null;
+        var indent = ImGui.GetTreeNodeToLabelSpacing();
+        foreach (var s in card.Outline)
+        {
+            if (s.Phase != null && s.Phase != phase)
+            {
+                ImGui.Spacing();
+                Theme.Caption(s.Phase);
+            }
+
+            phase = s.Phase;
+            var open = s.Rows.Count > 0 && s.DefaultOpen != toggled.Contains(s.Id);
+            if (DrawSectionRow(s, open, width) && !toggled.Remove(s.Id))
+                toggled.Add(s.Id);
+            if (!open)
+                continue;
+            using (ImRaii.PushIndent(indent, false))
+            {
+                foreach (var row in s.Rows)
+                    DrawIncidentRow(row, width - indent, ref clicked);
+            }
+        }
+    }
+
+    /// <summary>One prog point: caret, name, time range, and an alert with the count of incidents. Returns true when clicked.</summary>
+    private static bool DrawSectionRow(OutlineSection s, bool open, float width)
+    {
+        using var id = ImRaii.PushId(s.Id);
+        var x = ImGui.GetCursorPosX();
+        var clicked = ImGui.Selectable("##section", false, ImGuiSelectableFlags.AllowItemOverlap, new Vector2(width, 0)) && s.Rows.Count > 0;
+        if (ImGui.IsItemHovered())
+            ImGui.SetTooltip(s.Tooltip);
+        ImGui.SameLine();
+        ImGui.SetCursorPosX(x);
+        if (s.Rows.Count == 0)
+            Theme.Icon(FontAwesomeIcon.Check, Theme.With(Theme.Good, 0.7f));
+        else
+            Theme.Icon(open ? FontAwesomeIcon.CaretDown : FontAwesomeIcon.CaretRight, Theme.TextDim);
+        ImGui.SameLine(0, 6 * Scale);
+        ImGui.TextColored(s.Rows.Count == 0 ? Theme.TextDim : Theme.Text, s.Name);
+
+        // Right: time range, then the alert and count.
+        var count = s.Rows.Count > 0 ? s.Rows.Count.ToString() : string.Empty;
+        var right = (s.HasRoot ? ImGui.CalcTextSize("ROOT").X + (8 * Scale) : 0) + ImGui.CalcTextSize(s.Range).X +
+                    (s.Rows.Count > 0 ? ImGui.GetFontSize() + (4 * Scale) + ImGui.CalcTextSize(count).X + (10 * Scale) : 0);
+        ImGui.SameLine(Math.Max(ImGui.GetCursorPosX() + (8 * Scale), x + width - right));
+        if (s.HasRoot)
+        {
+            ImGui.TextColored(Theme.SevCritical, "ROOT");
+            ImGui.SameLine(0, 8 * Scale);
+        }
+
+        ImGui.TextColored(Theme.TextFaint, s.Range);
+        if (s.Rows.Count > 0)
+        {
+            ImGui.SameLine(0, 10 * Scale);
+            Theme.Icon(FontAwesomeIcon.ExclamationTriangle, s.Color);
+            ImGui.SameLine(0, 4 * Scale);
+            ImGui.TextColored(s.Color, count);
+        }
+
+        return clicked;
     }
 
     private void DrawIncidentRow(IncidentRow row, float width, ref Incident? clicked)

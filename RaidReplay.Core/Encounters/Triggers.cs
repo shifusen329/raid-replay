@@ -215,6 +215,7 @@ public enum MarkKind : byte
     Segment,
     Mechanic,
     Draw,
+    ProgPoint,
 }
 
 public sealed class EncounterMark
@@ -234,6 +235,7 @@ public sealed class EncounterRun
     private readonly Dictionary<TriggerDef, int> counts = new(ReferenceEqualityComparer.Instance);
     private int phase = -1;
     private int segment = -1;
+    private int progPoint = -1;
 
     public EncounterRun(CompiledEncounter enc, long pullStartTicks)
     {
@@ -283,6 +285,9 @@ public sealed class EncounterRun
             }
         }
 
+        if (phase >= 0)
+            FeedProgPoints(phases[phase].ProgPoints, e);
+
         foreach (var m in enc.Def.Mechanics)
         {
             // A mechanic tied to a phase only fires in it (the same ability can be reused later, e.g. P1's gaze setup in P3).
@@ -313,8 +318,34 @@ public sealed class EncounterRun
     {
         phase = q;
         segment = -1;
+        progPoint = -1;
         var p = enc.Def.Phases[q];
         Marks.Add(new EncounterMark { Kind = MarkKind.Phase, Id = p.Id, Name = p.Name, Ticks = ticks, Event = e, Def = p });
+        if (p.ProgPoints is [{ Start: null } first, ..])
+        {
+            progPoint = 0;
+            Marks.Add(new EncounterMark { Kind = MarkKind.ProgPoint, Id = first.Id, Name = first.Name, Ticks = ticks, Event = e, Def = first });
+        }
+    }
+
+    /// <summary>
+    /// Moves to the first later prog point whose start fires. Every later prog point sees the event, so occurrences count
+    /// even when an earlier one fires on it (e.g. the 2nd and 3rd Mystery Magic starting two different prog points).
+    /// </summary>
+    private void FeedProgPoints(List<ProgPointDef> pps, in TriggerEvent e)
+    {
+        var next = -1;
+        for (var i = progPoint + 1; i < pps.Count; i++)
+        {
+            if (pps[i].Start is { } start && Fires(start, e) && next < 0)
+                next = i;
+        }
+
+        if (next < 0)
+            return;
+        progPoint = next;
+        var pp = pps[next];
+        Marks.Add(new EncounterMark { Kind = MarkKind.ProgPoint, Id = pp.Id, Name = pp.Name, Ticks = e.Ticks + Delay(pp.Start!), Event = e, Def = pp });
     }
 
     private static long Delay(TriggerDef t) => (long)((t.DelayS ?? 0) * TimeSpan.TicksPerSecond);

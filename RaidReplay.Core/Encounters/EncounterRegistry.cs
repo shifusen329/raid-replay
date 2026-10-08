@@ -300,10 +300,21 @@ public static class EncounterValidator
             CheckShape(e.Draw, $"eobjs[{e.Base}]", problems);
 
         var phaseIds = new HashSet<string>();
+        var progIds = new HashSet<string>();
         foreach (var p in def.Phases)
         {
             if (!phaseIds.Add(p.Id))
                 problems.Add($"phases: duplicate id '{p.Id}'");
+            for (var i = 0; i < p.ProgPoints.Count; i++)
+            {
+                var pp = p.ProgPoints[i];
+                if (pp.Id.Length == 0 || pp.Name.Length == 0)
+                    problems.Add($"phases[{p.Id}].progPoints[{i}]: needs an id and a name");
+                else if (!progIds.Add(pp.Id))
+                    problems.Add($"phases[{p.Id}].progPoints: duplicate id '{pp.Id}'");
+                if (pp.Start == null && i > 0)
+                    problems.Add($"phases[{p.Id}].progPoints[{pp.Id}]: needs a start (only the first begins with the phase)");
+            }
         }
 
         foreach (var m in def.Mechanics)
