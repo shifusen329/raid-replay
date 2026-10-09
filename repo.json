@@ -23,5 +23,29 @@
     "DownloadLinkInstall": "https://github.com/shifusen329/raid-replay/releases/download/v0.0.9/latest.zip",
     "DownloadLinkTesting": "https://github.com/shifusen329/raid-replay/releases/download/v0.0.9/latest.zip",
     "DownloadLinkUpdate": "https://github.com/shifusen329/raid-replay/releases/download/v0.0.9/latest.zip"
+  },
+  {
+    "Author": "shifusen329",
+    "Name": "PF Notification",
+    "InternalName": "PfNotification",
+    "AssemblyVersion": "0.0.1.0",
+    "TestingAssemblyVersion": "0.0.1.0",
+    "Punchline": "Phone notification when your Party Finder party fills, or members join or leave.",
+    "Description": "Watches your party and sends a notification to your phone through a self-hosted ntfy server when it reaches full size, and optionally when members join or leave, so you can step away while recruiting.\nRead-only: it only observes your own client and never sends anything to the game servers.\nNeeds an ntfy topic and access token; set them with /pfnotify. Alpha, for FC members; not intended for the official repository.",
+    "ApplicableVersion": "any",
+    "RepoUrl": "https://github.com/shifusen329/pf-notification",
+    "Tags": ["party", "partyfinder", "notification"],
+    "DalamudApiLevel": 15,
+    "TestingDalamudApiLevel": 15,
+    "LoadPriority": 0,
+    "IsHide": false,
+    "IsTestingExclusive": false,
+    "AcceptsFeedback": true,
+    "DownloadCount": 0,
+    "LastUpdate": 1791575665,
+    "Changelog": "0.0.1 (alpha): first test build. A phone notification through ntfy when your party fills (Party Finder and same-world parties), plus join and leave alerts by job (never names). It never fires on entering or leaving a duty, or when you join a full party. Needs an ntfy topic and access token: /pfnotify.",
+    "DownloadLinkInstall": "https://github.com/shifusen329/pf-notification/releases/download/v0.0.1/latest.zip",
+    "DownloadLinkTesting": "https://github.com/shifusen329/pf-notification/releases/download/v0.0.1/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/shifusen329/pf-notification/releases/download/v0.0.1/latest.zip"
   }
 ]
